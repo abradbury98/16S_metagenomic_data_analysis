@@ -1,0 +1,2918 @@
+---
+title: "16S_Metagenomic_data_analysis"
+output: html_notebook
+---
+
+# 16S Metagenomic Data Analysis - Overview
+
+This R Markdown document performs comprehensive 16S rRNA gene amplicon sequencing analysis using the DADA2 pipeline for three distinct experimental datasets: **enrichment testing** (n=20), **host-DNA depletion testing** (n=60), and **DNA extraction kit comparison** (n=14), totaling **96 samples**. The workflow processes raw FASTQ sequences through quality filtering, denoising, chimera removal, and taxonomic classification using the SILVA reference database (v138.2), ultimately generating a phyloseq object containing OTU tables, sample metadata, and taxonomic assignments from Kingdom through Species level.
+
+## Complete Dataset (All 96 Samples)
+
+-   **Total samples**: 96 samples across all experimental conditions
+-   **Sequencing**: Paired-end Illumina 16S rRNA gene amplicon sequencing (V3-V4 region)
+-   **Primary phyloseq object**: `ps` - contains all 96 samples with complete OTU abundance table and taxonomy
+-   **Quality control**: Read tracking through DADA2 pipeline stored in `track` dataframe (input → filtered → denoised → merged → non-chimeric reads)
+-   **Taxonomic database**: SILVA nr99 v138.2 training set for species-level assignment
+-   **Key objects**:
+    -   `seqtab. nochim`: ASV (Amplicon Sequence Variant) table with chimeras removed
+    -   `taxa`: Taxonomic classification table (Kingdom → Phylum → Class → Order → Family → Genus → Species)
+    -   `ps_species_level_all96`: All samples agglomerated at Species level
+    -   `ps_top20_rel_abund_all96`: Top 20 most abundant species across all 96 samples
+
+------------------------------------------------------------------------
+
+## DADA2 Pipeline Parameters
+
+-   **Quality filtering**: `truncLen = c(230, 200)` for forward and reverse reads
+-   **Error parameters**: `maxN = 0`, `maxEE = c(2,2)`, `truncQ = 2`
+-   **Chimera removal**: `removeBimeraDenovo()` with default consensus method
+-   **Taxonomic assignment**: `assignTaxonomy()` using SILVA nr99 v138.2 to species level
+-   **Sequence tracking**: Pipeline step-wise read counts stored in `track` dataframe for QC
+
+------------------------------------------------------------------------
+
+## Dataset 1: Enrichment Testing Analysis (20 samples)
+
+**Objective**: Evaluate microbial community dynamics during selective enrichment for foodborne pathogens.
+
+### Sample Characteristics
+
+-   **Sample size**: 20 samples (subset of 96-sample dataset)
+-   **Enrichment broths**: Four types tested
+    -   **BF Bolton base** (BFBB): Buffered peptone water with Bolton broth base
+    -   **BF Bolton base w CAT**: Bolton base with Cefoperazone-Amphotericin-Tetrathionate supplement (antibiotic selection for *Campylobacter*)
+    -   **BPW**: Buffered Peptone Water (non-selective pre-enrichment)
+    -   **RVS**: Rappaport-Vassiliadis Soya broth (Salmonella-selective with malachite green)
+-   **Time course**: 0, 4, 8, 12, and 24 hours of incubation at 37°C (5 timepoints × 4 broths = 20 samples)
+-   **Sample codes**: BFBB0-24, CAT0-24, BPW0-24, RVS0-24
+
+### Key Phyloseq Objects
+
+-   `ps_enrichment_testing`: Complete enrichment dataset (20 samples) with metadata (Broth, Incubation, Incubation_hr)
+-   `ps_family_level_enrichment`: Enrichment samples agglomerated at Family level
+-   `ps_top20_families_enrichment`: Top 20 most abundant families in enrichment testing
+-   `ps_rvs_only`: RVS broth subset only (5 samples, timepoints 0-24h)
+-   `ps_rvs_bpw`: RVS and BPW broths only (10 samples), excludes Bolton-based media
+-   `ps_genus_rvs`: RVS samples agglomerated at Genus level
+-   `ps_all_broths`: All enrichment samples with complete, cleaned metadata (pathogen-focused analyses)
+
+### Target Pathogens
+
+-   **Campylobacterota** (Phylum): Contains *Campylobacter jejuni* and *C. coli*, leading bacterial cause of gastroenteritis worldwide
+-   **Enterobacteriaceae** (Family): Contains *Salmonella* spp. and pathogenic *E. coli*, major foodborne pathogens regulated by food safety agencies
+
+### Metadata Variables
+
+-   `Broth`: Enrichment medium type (factor with 4 levels)
+-   `Incubation`: Time with units (character: "0 hours", "4 hours", etc.)
+-   `Incubation_hr`: Numeric incubation time (0, 4, 8, 12, 24) for plotting
+-   `Sample`: Original sample code (BFBB0, CAT4, etc.)
+
+------------------------------------------------------------------------
+
+## Dataset 2: Host-DNA Depletion Testing (60 samples)
+
+**Objective**: Evaluate methods for reducing chicken host DNA contamination in metagenomic samples.
+
+### Sample Characteristics
+
+-   **Sample size**: 60 samples
+-   **Host-DNA depletion**: Two treatments
+    -   **Host-DNA depletion** (H): Saponin-based host cell lysis + DNase treatment
+    -   **No Host-DNA depletion** (NH): Standard processing without depletion
+-   **Sample processing methods**: Three filtration approaches
+    -   **Cheesecloth** (Ch): Coarse filtration through sterile cheesecloth
+    -   **Filtered** (F): 0.45 µm syringe filtration
+    -   **Filtered Centrifuge** (FCe): Filtration followed by centrifugation (10,000 × g)
+-   **Enrichment conditions**: Three broth types tested
+    -   **BFBB w CAT**: BF Bolton base with CAT supplement (*Campylobacter*-selective)
+    -   **RVS**: Rappaport-Vassiliadis Soya (*Salmonella*-selective)
+    -   **No Incubation**: Direct processing without enrichment
+-   **Dilution**: Diluted vs. Not Diluted (ND suffix indicates no dilution)
+-   **Sample types**: Biological replicates (1, 2, 3) and procedural blanks (B/Blank)
+-   **Sample codes**: HCh1-3, HChB, HF1-3, HFB, HFCe1-3, HFCeB, NHCh1-3, etc. with ND suffix for undiluted
+
+### Key Phyloseq Objects
+
+-   `ps_hostDNAdep`: Complete host-DNA depletion dataset (60 samples) with metadata
+-   `ps_hostDNAdep. top20_family`: Top 20 families agglomerated at Family level
+-   `ps_no_cheesecloth`: Filtered and Filtered Centrifuge samples only (excludes Cheesecloth)
+-   `ps_cheesecloth`: Cheesecloth samples only (excludes other filtration methods)
+-   `ps_cheesecloth_incubation`: Cheesecloth samples that underwent enrichment (excludes "No Incubation")
+
+### Metadata Variables
+
+-   `Host-DNA Depletion`: Treatment status (Host-DNA depletion vs. No Host-DNA depletion)
+-   `Method of Filtering`: Filtration approach (Cheesecloth, Filtered, Filtered Centrifuge)
+-   `Incubation`: Enrichment broth type (BFBB w CAT, RVS, No Incubation)
+-   `Dilution`: Dilution status (Diluted vs. Not Diluted)
+-   `Sample Number/Type`: Replicate number (1, 2, 3) or Blank
+-   `Sample_both`: Combined label (Sample Number + Dilution) for plotting
+
+------------------------------------------------------------------------
+
+## Dataset 3: DNA Extraction Kit Comparison (14 samples)
+
+**Objective**: Compare DNA yield and microbial community recovery across three commercial DNA extraction kits.
+
+### Sample Characteristics
+
+-   **Sample size**: 14 samples
+-   **DNA extraction kits**: Three commercial kits tested
+    -   **Presto Mini gDNA**: Presto Mini gDNA Bacteria Kit (Geneaid)
+    -   **Qiagen DNeasy Blood & Tissue**: DNeasy Blood & Tissue Kit (Qiagen)
+    -   **ZymoResearch DNA Miniprep**: Quick-DNA Miniprep Kit (Zymo Research)
+-   **Sample types**: Three categories
+    -   **Chicken Rinse**: Chicken carcass rinse water (biological samples, n=3 per kit = 9 samples)
+    -   **Spiked**: Positive controls spiked with known bacterial culture (n=1 per kit = 3 samples)
+    -   **Unspiked**: Negative extraction controls (n=1 per kit = 2 samples, note: Presto has unspiked only)
+-   **Sample codes**: PrMigDNA1-3, PRMgDNAUn; QDnBT1-3, QDnBTSp, QDnBTUn; ZymoMiPr1-3, ZymoMiPrSp, ZymoMIPrUn
+
+### Key Phyloseq Objects
+
+-   `DNAkits2`: Complete DNA kit comparison dataset (14 samples)
+-   `DNAkits2.top20`: Top 20 taxa normalized to relative abundance
+-   `DNAkits2.top20_family`: Top 20 families agglomerated at Family level
+
+### Metadata Variables
+
+-   `DNA Kit`: Extraction kit used (Presto Mini gDNA, Qiagen DNeasy Blood & Tissue, ZymoResearch DNA Miniprep)
+-   `Sample`: Sample type (Chicken Rinse, Spiked, Unspiked)
+-   `Number/Type`: Replicate number (1, 2, 3) or Control type
+-   `Name`: Combined label (Number + Sample) for plotting
+
+------------------------------------------------------------------------
+
+## Visualization Specifications (All Datasets)
+
+-   **Abundance transformations**:
+    -   Relative abundance: Raw counts → proportions (0-1 scale)
+    -   Percentage abundance: Raw counts → percentages (0-100 scale) via `transform_sample_counts()`
+-   **Color schemes**:
+    -   ColorBrewer "Paired" palette for top taxa
+    -   "Other" (grouped low-abundance taxa) in grey85 (light grey)
+    -   Custom pathogen-specific colors: Campylobacterota (#1b9e77 green), Enterobacteriaceae (#d95f02 orange)
+-   **Taxonomic levels analyzed**: Phylum, Family, Genus, Species depending on analysis depth
+-   **Top N taxa display**: Typically top 10-20 most abundant taxa, with remaining taxa grouped as "Other"
+-   **Plot types**:
+    -   Stacked bar plots: Taxonomic composition over time/treatment
+    -   Alpha diversity plots: Shannon and Simpson indices
+    -   Ordination plots: NMDS with Bray-Curtis dissimilarity
+    -   Heatmaps: Read depth quality control, abundance patterns
+    -   Combined plots: Using `patchwork`, `cowplot`, and `aplot` packages
+
+------------------------------------------------------------------------
+
+## Analysis Goals
+
+This comprehensive workflow enables: 1. **Enrichment optimization**: Identify optimal enrichment broths and incubation times for pathogen detection 2. **Host DNA reduction**: Evaluate efficacy of depletion methods and sample processing approaches 3. **Extraction optimization**: Compare DNA extraction kit performance for food microbiome samples 4. **Pathogen tracking**: Monitor *Campylobacter* (Campylobacterota) and *Salmonella* (Enterobacteriaceae) enrichment dynamics 5. **Quality control**: Track read depths and sequencing quality across all experimental conditions 6. **Method validation**: Assess reproducibility across technical replicates and procedural blanks
+
+------------------------------------------------------------------------
+
+## Key R Packages Used
+
+-   **DADA2**: Amplicon sequencing pipeline (denoising, chimera removal)
+-   **phyloseq**: Microbiome data structure and analysis
+-   **ggplot2**: Data visualization
+-   **dplyr/tidyr**: Data manipulation
+-   **stringr**: String pattern extraction
+-   **RColorBrewer/scales**: Color palettes and axis formatting
+-   **patchwork/cowplot/aplot**: Multi-panel plot composition
+-   **pheatmap**: Heatmap generation
+
+```{r Install Packages (if needed)}
+install.packages("rmarkdown")
+
+install.packages("BiocManager")
+
+install.packages("pheatmap")
+
+install.packages("aplot")
+
+install.packages("tidyr")
+
+install.packages("cowplot")
+
+install.packages("stringr")
+
+install.packages("dplyr")
+
+BiocManager::install("dada2")
+
+BiocManager::install("phyloseq")
+
+```
+
+```{r Load Packages & check version}
+library(rmarkdown)
+
+#Load dada2 and check version 
+library(dada2)
+packageVersion("dada2")
+
+#Load ShortRead and check version 
+library(ShortRead)
+packageVersion("ShortRead")
+
+#Load ggplot2 and check version 
+library(ggplot2)
+packageVersion("ggplot2")
+
+#Load phyloseq
+library(phyloseq)
+packageVersion("phyloseq")
+
+#Load stringr
+library(stringr)
+packageVersion("stringr")
+
+#Load ggplot2
+library(ggplot2)
+packageVersion("ggplot2")
+
+#Load dplyr
+library(dplyr)
+packageVersion("dplyr")
+
+#Load pheatmap (for heat maps)
+library(pheatmap)
+packageVersion("pheatmap")
+
+#Load aplot
+library(aplot)
+packageVersion("aplot")
+
+#Load tidyr
+library(tidyr)
+packageVersion("tidyr")
+
+#Load cowplot
+library(cowplot)
+packageVersion("cowplot")
+
+#Load RColorBrewer
+library(RColorBrewer)
+packageVersion("RColorBrewer")
+
+#Load RColorBrewer
+library(scales)
+packageVersion("scales")
+
+
+```
+
+#DADA2: Data Analysis of Sequence Data
+
+```{r Set Path}
+path <- "/nesi/nobackup/massey04083/method_development_chapter1/16S_Sequencing/MGS00721_Alice_Bradbury_Delivery/MGS00721_1/fQsequences"
+path
+```
+
+```{r List files within the path}
+fns <- list.files(path)
+fns
+```
+
+```{r Define full path}
+#Extract fastq sequences
+fastqs <- fns[grepl(".fastq.gz", fns)]
+fastqs
+
+#Sort them to ensure reads are in the same order
+fastqs <- sort(fastqs)
+
+#Make sub-lists for the forward and reverse reads
+fnFs <- fastqs[grepl("_R1", fastqs)] # Just the forward read files
+fnRs <- fastqs[grepl("_R2", fastqs)] # Just the reverse read files
+
+#Get the sample.names
+sample.names <- sapply(strsplit(fnFs, "_"), `[`, 1)
+
+#Specify the full path to the fnFs and fnRs
+fnFs <- file.path(path, fnFs)
+fnRs <- file.path(path, fnRs)
+
+fnFs
+fnRs
+
+```
+
+```{r Quality Plots}
+#Visualize the quality profile of the forward reads
+plotQualityProfile(fnFs[[1]])
+plotQualityProfile(fnFs[[12]])
+plotQualityProfile(fnRs[[1]])
+plotQualityProfile(fnRs[[12]])
+
+```
+
+```{r Make directory for filtered files}
+# Make directory and filenames for the filtered fastqs
+filt_path <- file.path(path, "filtered")
+if(!file_test("-d", filt_path)) dir.create(filt_path)
+filt_path
+
+# make list of filtered names for later
+filtFs <- file.path(filt_path, paste0(sample.names, "_F_filt.fastq.gz"))
+filtRs <- file.path(filt_path, paste0(sample.names, "_R_filt.fastq.gz"))
+
+```
+
+```{r Trimming and Filtering}
+#Perform the trimming and filtering
+#collect the names
+names(filtFs) <- sample.names
+names(filtRs) <- sample.names
+
+#Perform the trimming and filtering
+out <- filterAndTrim(fnFs, filtFs, fnRs, filtRs, truncLen=c(230,200),
+         maxN=0, maxEE=c(2,2), truncQ=2, rm.phix=TRUE,
+         compress=TRUE, multithread=FALSE)
+head(out)
+
+```
+
+```{r Dereplicate and rename}
+#dereplicate the forward and reverse reads separately
+derepFs <- derepFastq(filtFs, verbose=TRUE)
+
+derepRs <- derepFastq(filtRs, verbose=TRUE)
+
+##rename the derep-class objects by the sample names
+names(derepFs) <- sample.names
+names(derepRs) <- sample.names
+
+names(derepFs)
+```
+
+```{r Learn errors for forward and reverse & plot these}
+#Forward reads first and then look at the output
+errF <- learnErrors(derepFs, multithread=FALSE)
+
+dadaFs.lrn <- dada(derepFs, err=errF, multithread=TRUE)
+
+#Reverse reads second and then look at the output
+errR <- learnErrors(derepRs, multithread=FALSE)
+
+dadaRs.lrn <- dada(derepRs, err=errR, multithread=TRUE)
+
+##Plot the errors as a trellis plot
+
+plotErrors(errF, nominalQ=TRUE)
+```
+
+```{r Sequence variants in each sample}
+#Infer the sequence variants in each sample
+dadaFs <- dada(derepFs, err=errF, multithread=TRUE)
+
+dadaRs <- dada(derepRs, err=errR, multithread=TRUE)
+
+#inspect the results in more detail
+dadaFs[[1]]
+
+dadaFs[[1]][10]$opts
+
+dadaFs[[1]][10]$opts$BAND_SIZE
+
+dadaFs[[1]][10]$opts$USE_QUALS
+
+dadaFs[[1]][10]$opts$VECTORIZED_ALIGNMENT
+```
+
+```{r Merge denoised forward and reversed reads}
+#Merge the denoised forward and reverse reads
+
+mergers <- mergePairs(dadaFs, derepFs, dadaRs, derepRs, verbose=TRUE)
+
+head(mergers[[1]])
+```
+
+```{r Sequence Table and Lengths}
+#Construct sequence table of the non-Mock data
+
+seqtab <- makeSequenceTable(mergers)
+
+#Inspect the distribution of sequence lengths
+
+table(nchar(getSequences(seqtab)))
+
+```
+
+```{r Remove Chimetic Sequences}
+### Remove chimeric sequences
+seqtab.nochim <- removeBimeraDenovo(seqtab, verbose=TRUE)
+
+sum(seqtab.nochim)/sum(seqtab)
+
+#Remove chimeric sequences with some complicated code
+getN <- function(x) sum(getUniques(x)) # our first function
+track <- cbind(out, sapply(dadaFs, getN), sapply(dadaRs, getN),
+           sapply(mergers, getN), rowSums(seqtab.nochim))
+
+colnames(track) <- c("input", "filtered", "denoisedF", "denoisedR", "merged",
+                       "nonchim")
+
+rownames(track) <- sample.names
+
+head(track)
+
+```
+
+```{r Assign Taxonomy to species level}
+#use a reference data set to assign taxonomy to the reads
+
+training <- ("~/00_nesi_projects/00_nesi_projects/massey04083_nobackup/method_development_chapter1/16S_Sequencing/silva_nr99_v138.2_toSpecies_trainset.fa")
+training
+
+taxa <- assignTaxonomy(
+  seqtab.nochim,
+  training,
+  multithread = 12,
+  verbose = TRUE
+)
+taxa
+
+taxa.print <- taxa
+rownames(taxa.print) <- NULL
+head(taxa.print)
+```
+
+```{r OTU table}
+
+samples.out <- rownames(seqtab.nochim)
+samples.out
+
+ps <- phyloseq(otu_table(seqtab.nochim, taxa_are_rows=FALSE), sample_names(samples.out), tax_table(taxa))
+ps
+
+```
+
+```{r All - Alpha Richness plot - Shannon & Simpson}
+
+plot_richness(ps, measures=c("Shannon", "Simpson"))
+
+```
+
+```{r All - Bray NMDS}
+## Ordination method
+ord.nmds.bray <- ordinate(ps, method="NMDS", distance="bray")
+plot_ordination(ps, ord.nmds.bray, title="Bray NMDS")
+```
+
+```{r All - Plot top 20}
+
+# Agglomerate taxa at the Species level - this collapses all taxa that have the same species-level classification into single entries, summing their counts
+ps_species_level_all96 <- tax_glom(ps, taxrank = "Genus")
+
+# Identify the top 20 most abundant taxa across all 96 samples, sort in descending order and select the first 20 taxon names
+top20_taxa_names_all96 <- names(sort(taxa_sums(ps_species_level_all96), decreasing=TRUE))[1:20]
+
+# Display the first few taxon IDs from the top 20 list
+head(top20_taxa_names_all96)
+
+# Transform counts to relative abundances 
+ps_relative_abundance_all96 <- transform_sample_counts(ps_species_level_all96, function(OTU) OTU/sum(OTU))
+
+# Subset the phyloseq object to retain only the top 20 most abundant taxa, r
+# Removes all other taxa
+ps_top20_rel_abund_all96 <- prune_taxa(top20_taxa_names_all96, ps_relative_abundance_all96)
+
+# Create a bar plot showing the relative abundance of the top 20 taxa across all 96 samples,
+plot_top20_by_species_all96 <- plot_bar(ps_top20_rel_abund_all96, fill="Genus")
+
+# Display plot 
+plot_top20_by_species_all96
+
+
+plot_df <- psmelt(ps_top20_rel_abund_all96)
+
+# Replace NA genus with "Other" (CRITICAL)
+plot_df$Genus <- as.character(plot_df$Genus)
+plot_df$Genus[is.na(plot_df$Genus)] <- "Other"
+
+# Get exact genus levels used in the plot
+genus_levels <- sort(unique(plot_df$Genus))
+
+
+
+library(dplyr)
+library(stringr)
+library(ggplot2)
+library(RColorBrewer)
+
+# ------------------------------------------------
+# Build sample ordering metadata
+# ------------------------------------------------
+sample_info <- plot_df %>%
+  distinct(Sample) %>%
+  mutate(
+    BrothGroup = case_when(
+      str_detect(Sample, "^BFBB") ~ "BFBB",
+      str_detect(Sample, "^CAT")  ~ "CAT",
+      str_detect(Sample, "^BPW")  ~ "BPW",
+      str_detect(Sample, "^RVS")  ~ "RVS",
+      str_detect(Sample, "^NH")   ~ "NH",
+      str_detect(Sample, "^H")    ~ "H",
+      str_detect(Sample, "^HF|^NHCe") ~ "Filter",
+      str_detect(Sample, "PrMig|QDnBT|Zymo|PRM") ~ "Extraction",
+      str_detect(Sample, "ToxoVax|jejuni|Undetermined") ~ "Control",
+      TRUE ~ "Other"
+    ),
+
+    Incubation = as.numeric(str_extract(Sample, "\\d+")),
+    ND         = str_detect(Sample, "ND"),
+    Replicate  = as.numeric(str_extract(Sample, "(?<=Ch|Ce)\\d"))
+  ) %>%
+  mutate(
+    GroupOrder = case_when(
+      BrothGroup %in% c("BFBB", "CAT", "BPW", "RVS") ~ 1,
+      BrothGroup == "NH" ~ 2,
+      BrothGroup == "H"  ~ 3,
+      BrothGroup == "Filter" ~ 4,
+      BrothGroup == "Extraction" ~ 5,
+      BrothGroup == "Control" ~ 6,
+      TRUE ~ 99
+    )
+  )
+
+sample_order <- sample_info %>%
+  arrange(
+    GroupOrder,
+    BrothGroup,
+    Incubation,
+    !ND,
+    Replicate,
+    Sample
+  ) %>%
+  pull(Sample)
+
+plot_df <- plot_df %>%
+  mutate(Sample = factor(Sample, levels = sample_order))
+
+# ------------------------------------------------
+# Colour palette
+# ------------------------------------------------
+genus_levels <- levels(factor(plot_df$Genus))
+
+pal_genera <- colorRampPalette(
+  brewer.pal(12, "Paired")
+)(length(genus_levels))
+
+names(pal_genera) <- genus_levels
+
+if ("Other" %in% names(pal_genera)) {
+  pal_genera["Other"] <- "grey85"
+}
+
+# ------------------------------------------------
+# Plot
+# ------------------------------------------------
+label_lines <- plot_df %>%
+  distinct(Sample)
+
+
+plot_top20_by_species_all96 <- ggplot(
+  plot_df,
+  aes(x = Sample, y = Abundance, fill = Genus)
+) +
+  geom_bar(stat = "identity", width = 0.9) +
+
+  scale_fill_manual(values = pal_genera, drop = FALSE) +
+  scale_x_discrete(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) +
+
+  theme_bw(base_size = 16) +
+  theme(
+    ## 🔹 REMOVE black border only
+    panel.border = element_blank(),
+
+    ## 🔹 vertical guide lines aligned with bars
+    panel.grid.major.x = element_line(
+      colour = "grey85",
+      linewidth = 0.3
+    ),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.y = element_blank(),
+
+    ## Labels directly under bars
+    axis.text.x = element_text(
+      size = 10,
+      angle = 90,
+      hjust = 1,
+      vjust = 0.5
+    ),
+
+    axis.text.y  = element_text(size = 16),
+    axis.title.x = element_text(size = 16, face = "bold"),
+    axis.title.y = element_text(size = 16, face = "bold"),
+    legend.text  = element_text(size = 14),
+    legend.title = element_text(size = 16, face = "bold"),
+
+    plot.margin = margin(10, 10, 10, 10)
+  ) +
+  labs(
+    x = "Sample",
+    y = "Relative abundance",
+    fill = "Genus"
+  )
+
+# Display
+plot_top20_by_species_all96
+
+
+# -----------------------------------
+# Save
+# -----------------------------------
+
+ggsave("taxa20_all96samples.png", 
+       plot=plot_top20_by_species_all96,
+       width=16,
+       height=10,
+       dpi=600)
+```
+
+
+```{r Top 20 - including all bacteria as other - all 96 samples}
+
+library(phyloseq)
+library(dplyr)
+library(ggplot2)
+library(RColorBrewer)
+library(stringr)
+library(scales)
+
+# ---- 1) Agglomerate at Genus level ----
+ps_genus <- tax_glom(ps, taxrank = "Genus")
+
+# ---- 2) Transform counts to relative abundance ----
+ps_rel <- transform_sample_counts(ps_genus, function(x) x / sum(x))
+
+# ---- 3) Melt to long dataframe ----
+df <- psmelt(ps_rel) %>%
+  mutate(
+    Genus = ifelse(is.na(Genus) | Genus == "", "Unassigned", as.character(Genus))
+  )
+
+# ---- 4) Identify top 20 genera across all samples ----
+top20_genera <- df %>%
+  group_by(Genus) %>%
+  summarise(total_abundance = sum(Abundance, na.rm = TRUE), .groups = "drop") %>%
+  arrange(desc(total_abundance)) %>%
+  slice_head(n = 20) %>%
+  pull(Genus)
+
+# ---- 5) Assign "Other" to genera not in top 20 ----
+df <- df %>%
+  mutate(
+    Genus2 = ifelse(Genus %in% top20_genera, Genus, "Other")
+  )
+
+# ---- 6) Set factor levels: top genera first, then Unassigned, then Other ----
+genus_order <- df %>%
+  group_by(Genus2) %>%
+  summarise(total = sum(Abundance, na.rm = TRUE), .groups = "drop") %>%
+  arrange(desc(total)) %>%
+  pull(Genus2)
+
+# Put "Unassigned" and "Other" at the end
+genus_order <- c(setdiff(genus_order, c("Unassigned", "Other")), "Unassigned", "Other")
+df$Genus2 <- factor(df$Genus2, levels = genus_order)
+
+# ---- 7) Colour palette ----
+pal <- colorRampPalette(brewer.pal(12, "Paired"))(length(levels(df$Genus2)))
+names(pal) <- levels(df$Genus2)
+pal["Other"] <- "grey85"
+pal["Unassigned"] <- "grey65"
+
+# ---- 8) Optional: build sample ordering (adapt your previous logic) ----
+sample_info <- df %>%
+  distinct(Sample) %>%
+  mutate(
+    BrothGroup = case_when(
+      str_detect(Sample, "^BFBB") ~ "BFBB",
+      str_detect(Sample, "^CAT")  ~ "CAT",
+      str_detect(Sample, "^BPW")  ~ "BPW",
+      str_detect(Sample, "^RVS")  ~ "RVS",
+      str_detect(Sample, "^NH")   ~ "NH",
+      str_detect(Sample, "^H")    ~ "H",
+      str_detect(Sample, "^HF|^NHCe") ~ "Filter",
+      str_detect(Sample, "PrMig|QDnBT|Zymo|PRM") ~ "Extraction",
+      str_detect(Sample, "ToxoVax|jejuni|Undetermined") ~ "Control",
+      TRUE ~ "Other"
+    ),
+    Incubation = as.numeric(str_extract(Sample, "\\d+")),
+    ND = str_detect(Sample, "ND"),
+    Replicate = as.numeric(str_extract(Sample, "(?<=Ch|Ce)\\d"))
+  ) %>%
+  mutate(
+    GroupOrder = case_when(
+      BrothGroup %in% c("BFBB", "CAT", "BPW", "RVS") ~ 1,
+      BrothGroup == "NH" ~ 2,
+      BrothGroup == "H"  ~ 3,
+      BrothGroup == "Filter" ~ 4,
+      BrothGroup == "Extraction" ~ 5,
+      BrothGroup == "Control" ~ 6,
+      TRUE ~ 99
+    )
+  )
+
+sample_order <- sample_info %>%
+  arrange(
+    GroupOrder,
+    BrothGroup,
+    Incubation,
+    !ND,
+    Replicate,
+    Sample
+  ) %>%
+  pull(Sample)
+
+df$Sample <- factor(df$Sample, levels = sample_order)
+
+# ---- 9) Plot stacked bar chart ----
+plot_all_top20 <- ggplot(df, aes(x = Sample, y = Abundance, fill = Genus2)) +
+  geom_bar(stat = "identity", width = 0.9) +
+  scale_fill_manual(values = pal, drop = FALSE) +
+  scale_x_discrete(expand = c(0,0)) +
+  scale_y_continuous(expand = c(0,0), labels = scales::percent_format()) +
+  theme_bw(base_size = 16) +
+  theme(
+    panel.border = element_blank(),
+    panel.grid.major.x = element_line(colour = "grey85", linewidth = 0.3),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.y = element_blank(),
+    axis.text.x = element_text(size = 10, angle = 90, hjust = 1, vjust = 0.5),
+    axis.text.y = element_text(size = 16),
+    axis.title = element_text(size = 16, face = "bold"),
+    legend.text = element_text(size = 14),
+    legend.title = element_text(size = 16, face = "bold"),
+    plot.margin = margin(10,10,10,10)
+  ) +
+  labs(
+    x = "Sample",
+    y = "Relative abundance",
+    fill = "Genus"
+  ) +
+  guides(fill = guide_legend(ncol = 1))  # <-- forces legend into a single column
+
+plot_all_top20
+
+
+# ---- 10) Save ----
+ggsave("taxa_top20_all_samples_with-other.png", plot = plot_all_top20,
+       width = 18, height = 10, dpi = 600)
+
+
+```
+
+
+
+#Read Depths and Abundance - Heat Map
+
+```{r Combined Abundance Bar Plot and Read Depth Heat Map}
+
+sample_order <- levels(plot_df$Sample)
+
+# Prepare heatmap data from track
+heatmap_df <- track %>%
+  as.data.frame() %>%
+  rownames_to_column("Sample") %>%
+  pivot_longer(
+    cols = -Sample,
+    names_to = "Step",
+    values_to = "Reads"
+  )
+
+# Ensure correct DADA2 step order
+heatmap_df$Step <- factor(
+  heatmap_df$Step,
+  levels = c(
+    "input",
+    "filtered",
+    "denoisedF",
+    "denoisedR",
+    "merged",
+    "nonchim"
+  )
+)
+
+heatmap_df <- heatmap_df %>%
+  mutate(
+    Sample = factor(Sample, levels = sample_order)
+  )
+
+# Build heatmap
+heatmap_reads <- ggplot(
+  heatmap_df,
+  aes(x = Step, y = Sample, fill = Reads)
+) +
+  geom_tile(color = "grey90", linewidth = 0.15) +
+
+  scale_fill_viridis_c(
+    option = "magma",
+    trans  = "log10",
+    name   = "Reads (log10)"
+  ) +
+
+  theme_minimal(base_size = 12) +
+  theme(
+    axis.text.y  = element_text(size = 8),
+    axis.text.x  = element_text(size = 12, angle = 45, hjust = 1),
+    axis.title.y = element_text(size = 14, face = "bold"),
+    axis.title.x = element_text(size = 14, face = "bold"),
+    panel.grid   = element_blank(),
+    plot.margin  = margin(10, 10, 10, 10)
+  ) +
+
+  labs(
+    title = "Read retention across DADA2 pipeline steps",
+    x = "Pipeline step",
+    y = "Sample"
+  )
+
+# Display
+heatmap_reads
+
+# Save
+ggsave(
+  "read_counts_changes_through_DADA2.png",
+  plot   = heatmap_reads,
+  width  = 8,
+  height = 14,
+  dpi    = 600
+)
+
+```
+
+```{r Combined Bar Plot and Heatmap}
+
+# Combine the bar plot and heatmap vertically using cowplot
+combined_plot_cowplot <- plot_grid(
+  plot_abundance_families,                                           # Bar plot (top)
+  plot_heatmap_reads,                                                # Heatmap (bottom)
+  ncol = 1,                                                          # Stack vertically (1 column)
+  rel_heights = c(4, 1),                                             # 4:1 height ratio
+  align = 'v'                                                        # Align vertically
+)
+
+# Display the combined plot
+combined_plot_cowplot
+
+# Save the cowplot version
+ggsave("combined_abundance_reads_cowplot.png", 
+       plot = combined_plot_cowplot, 
+       width = 12, 
+       height = 8, 
+       dpi = 300)
+```
+
+#Enrichment testing analysis
+
+```{r Enrichment: Data processing}
+# Display all sample names available in the dataset
+samples.out
+
+# Define the original sample codes for enrichment testing conditions
+# Format: [Medium][Timepoint] where medium = BFBB/CAT/BPW/RVS and timepoint = 0/4/8/12/24 hours
+enrichment_testing_codes <- c("BFBB0", "BFBB4", "BFBB8", "BFBB12", "BFBB24", 
+                               "CAT0", "CAT4", "CAT8", "CAT12", "CAT24", 
+                               "BPW0", "BPW4", "BPW8", "BPW12", "BPW24", 
+                               "RVS0", "RVS4", "RVS8", "RVS12", "RVS24")
+
+# Display the enrichment testing sample codes
+enrichment_testing_codes
+
+# Filter to keep only enrichment testing samples that exist in the dataset
+enrichment_testing_samples <- enrichment_testing_codes[enrichment_testing_codes %in% samples.out]
+
+# Display the filtered enrichment testing samples
+enrichment_testing_samples
+
+# Replace medium code "BFBB" with full descriptive name "BF Bolton base "
+enrichment_testing_samples <- gsub("BFBB", "BF Bolton base ", enrichment_testing_samples)
+
+# Replace medium code "CAT" with full descriptive name "BF Bolton base w CAT "
+enrichment_testing_samples <- gsub("CAT", "BF Bolton base plus CAT ", enrichment_testing_samples)
+
+# Replace medium code "RVS" with full descriptive name "RVS "
+enrichment_testing_samples <- gsub("RVS", "RVS ", enrichment_testing_samples)
+
+# Replace medium code "BPW" with full descriptive name "BPW "
+enrichment_testing_samples <- gsub("BPW", "BPW ", enrichment_testing_samples)
+
+# Replace timepoint "0" with "0 hours"
+enrichment_testing_samples <- gsub("0", "0 hours", enrichment_testing_samples)
+
+# Replace timepoint "8" with "8 hours"
+enrichment_testing_samples <- gsub("8", "8 hours", enrichment_testing_samples)
+
+# Replace timepoint "12" with "12 hours"
+enrichment_testing_samples <- gsub("12", "12 hours", enrichment_testing_samples)
+
+# Replace timepoint "4" with "4 hours" (fixed=TRUE ensures exact match, 
+# avoiding partial matches with "24")
+enrichment_testing_samples <- gsub("4", "4 hours", enrichment_testing_samples, fixed=TRUE)
+
+# Display the final enrichment testing sample names
+enrichment_testing_samples
+```
+
+```{r Enrichment: Create data frame }
+
+# Extract the broth types from the sample names using regex - [A-Za-z ]+ captures all letters and spaces (the broth names)
+enrichment_broth_types <- str_extract(enrichment_testing_samples, "[A-Za-z ]+")
+enrichment_broth_types
+
+# Extract the incubation time (numeric values only) from the sample names using regex - \\d+ captures one or more digits 
+enrichment_incubation_times <- str_extract(enrichment_testing_samples, "\\d+")
+enrichment_incubation_times
+
+# Create a sample metadata dataframe with two columns: Broth (medium type) and Incubation (time in hours)
+samdf_enrichment <- data.frame(Broth=enrichment_broth_types, 
+                                Incubation=enrichment_incubation_times)
+
+# Display dataframe
+samdf_enrichment
+
+# Set row names to the original sample codes (BFBB0, CAT4, etc.) for matching with the OTU table
+rownames(samdf_enrichment) <- enrichment_testing_codes
+
+# Display the dataframe with row names
+samdf_enrichment
+
+# Create a phyloseq object specifically for enrichment testing samples
+# Combines:  OTU abundance table, sample metadata, and taxonomic classifications
+ps_enrichment_testing <- phyloseq(otu_table(seqtab.nochim, taxa_are_rows=FALSE), 
+                                   sample_data(samdf_enrichment), 
+                                   tax_table(taxa))
+
+# Display summary of the enrichment testing phyloseq object
+ps_enrichment_testing
+```
+
+##Enrichment Testing - Alpha Diversity Analysis
+
+```{r Enrichment: FIGURE 1-Alpha diversity}
+
+# Extract sample metadata from phyloseq object as a dataframe
+sample_metadata_enrichment <- as.data.frame(sample_data(ps_enrichment_testing))
+
+# Remove leading/trailing whitespace from Broth column
+sample_metadata_enrichment$Broth <- trimws(as.character(sample_metadata_enrichment$Broth))
+
+# Create numeric incubation time variable - Converts "4 hours" → 4, "24 hours" → 24, etc.
+sample_metadata_enrichment$Incubation_hr <- as.numeric(gsub("[^0-9.]", "", as.character(sample_metadata_enrichment$Incubation)))
+
+# Update the phyloseq object with cleaned Broth values
+sample_data(ps_enrichment_testing)$Broth <- sample_metadata_enrichment$Broth
+
+# Add the new numeric incubation time variable to the phyloseq object
+sample_data(ps_enrichment_testing)$Incubation_hr <- sample_metadata_enrichment$Incubation_hr
+
+#Create alpha diversity plot (Shannon and Simpson indices) over incubation time
+
+plot_alpha_diversity_enrichment <- plot_richness(
+  ps_enrichment_testing,
+  x = "Incubation_hr",                              # X-axis:  incubation time in hours
+  measures = c("Shannon", "Simpson")                # Diversity metrics to calculate
+) +
+  aes(color = Broth) +                              # Color points by broth/medium type
+  scale_color_manual(values = c(                    # Custom color palette for each broth
+    "BF Bolton base"       = "#F8766D",             # Red for BF Bolton base
+    "BF Bolton base plus CAT" = "#7CAE00",             # Cyan for BF Bolton base with CAT
+    "BPW"                  = "#00BFC4",             # Green for Buffered Peptone Water
+    "RVS"                  = "#C77CFF"              # Purple for Rappaport-Vassiliadis Soya
+  )) +
+  scale_x_continuous(breaks = c(0, 4, 8, 12, 24)) + # Set X-axis breaks at each timepoint
+  labs(x = "Incubation (h)")   +                      # X-axis label
+  geom_point(size = 3, alpha = 0.6)
+
+# Display the alpha diversity plot
+plot_alpha_diversity_enrichment
+
+ggsave("alpha_diversity_enrichment.png", 
+       plot = plot_alpha_diversity_enrichment, 
+       width = 10, 
+       height = 6, 
+       dpi = 600)
+
+```
+
+##Enrichment Testing - Bray NMDS
+
+```{r Enrichment: Bray NMDS}
+
+# Perform Non-metric Multidimensional Scaling (NMDS) ordination using Bray-Curtis dissimilarity
+ordination_nmds_bray_enrichment <- ordinate(ps_enrichment_testing, 
+                                             method = "NMDS",      # NMDS ordination method
+                                             distance = "bray")    # Bray-Curtis dissimilarity metric
+
+# Create ordination plot 
+plot_ordination_bray_enrichment <- plot_ordination(ps_enrichment_testing, 
+                                                    ordination_nmds_bray_enrichment, 
+                                                    title = "Bray NMDS")
+
+```
+
+##Enrichment Testing: Plots - Microbial Diversity
+
+```{r Combined Plot Using Aplot - top 20 Families & reads}
+
+library(phyloseq)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(tibble)
+
+# Alpha diversity
+div_df <- phyloseq::estimate_richness(
+  ps_top20_families_enrichment,
+  measures = "Shannon"
+)
+div_df$Sample <- rownames(div_df)
+
+# Sample metadata
+meta_df <- as.data.frame(phyloseq::sample_data(ps_top20_families_enrichment))
+meta_df$Sample <- rownames(meta_df)
+
+# Read counts
+reads_df <- data.frame(
+  Sample = phyloseq::sample_names(ps_top20_families_enrichment),
+  Reads  = phyloseq::sample_sums(ps_top20_families_enrichment)
+)
+
+# Combine into ONE dataframe
+heatmap_df <- div_df %>%
+  dplyr::left_join(meta_df, by = "Sample") %>%
+  dplyr::left_join(reads_df, by = "Sample")
+
+head(heatmap_df)
+
+
+```
+
+##All Enrichment Broths - Top 12 Genera Stacked Bar Plot
+
+```{r Enrichment Broths All: Top 12 Genera Stacked Bar Plot (FIXED)}
+
+library(phyloseq)
+library(dplyr)
+library(ggplot2)
+library(scales)
+library(RColorBrewer)
+library(stringr)
+
+
+# Extract and clean sample metadata
+sample_metadata_all_broths <- as.data.frame(sample_data(ps_enrichment_testing))
+sample_metadata_all_broths$Broth <- trimws(as.character(sample_metadata_all_broths$Broth))
+sample_metadata_all_broths$Incubation_hr <- as.numeric(gsub("[^0-9.]", "", as.character(sample_metadata_all_broths$Incubation)))
+
+# Update phyloseq object with cleaned metadata
+sample_data(ps_enrichment_testing)$Broth <- sample_metadata_all_broths$Broth
+sample_data(ps_enrichment_testing)$Incubation_hr <- sample_metadata_all_broths$Incubation_hr
+
+# Agglomerate at Genus level
+ps_genus_all_broths <- tax_glom(ps_enrichment_testing, taxrank = "Genus", NArm = FALSE)
+ps_genus_all_broths <- prune_taxa(taxa_sums(ps_genus_all_broths) > 0, ps_genus_all_broths)
+
+# Transform to relative abundance
+ps_genus_rel_all_broths <- transform_sample_counts(ps_genus_all_broths, function(x) x / sum(x))
+
+# Convert to long format and clean taxonomy
+df_all_broths <- psmelt(ps_genus_rel_all_broths) %>%
+  mutate(
+    Broth = trimws(as.character(Broth)),
+    Incubation_hr = as.numeric(Incubation_hr),
+    Genus = ifelse(is.na(Genus) | Genus == "", "Unassigned", as.character(Genus))
+  )
+
+# Identify top 12 genera across all enrichment broths
+topN <- 20
+top_genera_all_broths <- df_all_broths %>%
+  group_by(Genus) %>%
+  summarise(tot = sum(Abundance, na.rm = TRUE), .groups = "drop") %>%
+  arrange(desc(tot)) %>%
+  slice_head(n = topN) %>%
+  pull(Genus)
+
+# Top genera as themselves, everything else = Other
+df_all_broths <- df_all_broths %>%
+  mutate(Genus2 = ifelse(Genus %in% top_genera_all_broths, Genus, "Other"))
+
+# Order legend by total abundance (Other last)
+genus_order_all <- df_all_broths %>%
+  group_by(Genus2) %>%
+  summarise(tot = sum(Abundance, na.rm = TRUE), .groups = "drop") %>%
+  arrange(desc(tot)) %>%
+  pull(Genus2)
+genus_order_all <- c(setdiff(genus_order_all, "Other"), "Other")
+df_all_broths$Genus2 <- factor(df_all_broths$Genus2, levels = genus_order_all)
+
+# Palette (grey for Other)
+n_genera_all <- length(levels(df_all_broths$Genus2))
+pal_genera_all <- colorRampPalette(brewer.pal(20, "Paired"))(n_genera_all)
+names(pal_genera_all) <- levels(df_all_broths$Genus2)
+pal_genera_all["Other"] <- "grey85"
+pal_genera_all
+
+# Plot: faceted stacked bars
+plot_top_genera_all_broths <- df_all_broths %>%
+  group_by(Broth, Sample, Incubation_hr, Genus2) %>%
+  summarise(Abundance = sum(Abundance), .groups = "drop") %>%
+  ggplot(aes(x = Incubation_hr, y = Abundance, fill = Genus2)) +
+  geom_col(width = 2, color = "white", linewidth = 0.25) +
+  facet_wrap(~Broth, ncol = 2) +
+  scale_x_continuous(breaks = c(0, 4, 8, 12, 24)) +
+  scale_y_continuous(labels = percent_format()) +
+  scale_fill_manual(values = pal_genera_all, drop = FALSE) +
+    guides(fill = guide_legend(ncol = 1)) + 
+  labs(x = "Incubation (h)", y = "Relative abundance", fill = "Genus", title =
+    "Relative abundance of top 20 genera for enrichment broths during incubation") +
+  theme_bw() +
+  theme(
+    panel.grid.minor = element_blank(),
+    legend.key.height = unit(0.45, "cm")
+  )
+
+plot_top_genera_all_broths
+
+ggsave("plot_top_genera_all_broths.png", plot = plot_top_genera_all_broths, width = 12, height = 8, dpi = 600)
+
+
+```
+
+```{r Heat Map - top 20 enrichment testing}
+# Load required libraries
+library(phyloseq)
+library(tidyverse)
+library(RColorBrewer)
+library(scales)
+library(ComplexHeatmap)
+BiocManager::install("ComplexHeatmap")
+library(circlize)
+
+# Extract and clean sample metadata
+sample_metadata_all_broths <- as.data.frame(sample_data(ps_enrichment_testing))
+sample_metadata_all_broths$Broth <- trimws(as.character(sample_metadata_all_broths$Broth))
+sample_metadata_all_broths$Incubation_hr <- as.numeric(gsub("[^0-9.]", "", as.character(sample_metadata_all_broths$Incubation)))
+
+# Update phyloseq object with cleaned metadata
+sample_data(ps_enrichment_testing)$Broth <- sample_metadata_all_broths$Broth
+sample_data(ps_enrichment_testing)$Incubation_hr <- sample_metadata_all_broths$Incubation_hr
+
+# Agglomerate at Genus level
+ps_genus_all_broths <- tax_glom(ps_enrichment_testing, taxrank = "Genus", NArm = FALSE)
+ps_genus_all_broths <- prune_taxa(taxa_sums(ps_genus_all_broths) > 0, ps_genus_all_broths)
+
+# Get absolute counts (for annotation)
+ps_genus_counts <- ps_genus_all_broths
+
+# Transform to relative abundance
+ps_genus_rel_all_broths <- transform_sample_counts(ps_genus_all_broths, function(x) x / sum(x))
+
+# Convert to long format and clean taxonomy - RELATIVE ABUNDANCE
+df_all_broths <- psmelt(ps_genus_rel_all_broths) %>%
+  mutate(
+    Broth = trimws(as.character(Broth)),
+    Incubation_hr = as.numeric(Incubation_hr),
+    Genus = ifelse(is.na(Genus) | Genus == "", "Unassigned", as.character(Genus))
+  )
+
+# Convert to long format - ABSOLUTE COUNTS
+df_counts <- psmelt(ps_genus_counts) %>%
+  mutate(
+    Broth = trimws(as.character(Broth)),
+    Incubation_hr = as.numeric(Incubation_hr),
+    Genus = ifelse(is.na(Genus) | Genus == "", "Unassigned", as.character(Genus))
+  )
+
+# Identify top 20 genera across all enrichment broths
+topN <- 20
+top_genera_all_broths <- df_all_broths %>%
+  group_by(Genus) %>%
+  summarise(tot = sum(Abundance, na.rm = TRUE), .groups = "drop") %>%
+  arrange(desc(tot)) %>%
+  slice_head(n = topN) %>%
+  pull(Genus)
+
+# Filter for top genera only
+df_top_rel <- df_all_broths %>%
+  filter(Genus %in% top_genera_all_broths)
+
+df_top_counts <- df_counts %>%
+  filter(Genus %in% top_genera_all_broths)
+
+# Create matrix for heatmap - RELATIVE ABUNDANCE
+# Average across replicates if needed
+mat_rel <- df_top_rel %>%
+  group_by(Broth, Incubation_hr, Genus) %>%
+  summarise(Mean_Abundance = mean(Abundance, na.rm = TRUE), .groups = "drop") %>%
+  mutate(Sample_ID = paste(Broth, Incubation_hr, "h", sep = "_")) %>%
+  select(Genus, Sample_ID, Mean_Abundance) %>%
+  pivot_wider(names_from = Sample_ID, values_from = Mean_Abundance, values_fill = 0) %>%
+  column_to_rownames("Genus") %>%
+  as.matrix()
+
+# Create matrix for heatmap - READ COUNTS
+mat_counts <- df_top_counts %>%
+  group_by(Broth, Incubation_hr, Genus) %>%
+  summarise(Mean_Counts = mean(Abundance, na.rm = TRUE), .groups = "drop") %>%
+  mutate(Sample_ID = paste(Broth, Incubation_hr, "h", sep = "_")) %>%
+  select(Genus, Sample_ID, Mean_Counts) %>%
+  pivot_wider(names_from = Sample_ID, values_from = Mean_Counts, values_fill = 0) %>%
+  column_to_rownames("Genus") %>%
+  as.matrix()
+
+# Ensure both matrices have same dimensions and order
+common_samples <- intersect(colnames(mat_rel), colnames(mat_counts))
+common_genera <- intersect(rownames(mat_rel), rownames(mat_counts))
+mat_rel <- mat_rel[common_genera, common_samples]
+mat_counts <- mat_counts[common_genera, common_samples]
+
+# Order genera by total abundance
+genus_order <- rownames(mat_rel)[order(rowSums(mat_rel), decreasing = TRUE)]
+mat_rel <- mat_rel[genus_order, ]
+mat_counts <- mat_counts[genus_order, ]
+
+# Create column annotation for broth type and time
+col_anno_df <- data.frame(
+  Sample = colnames(mat_rel),
+  stringsAsFactors = FALSE
+) %>%
+  mutate(
+    Broth = str_replace(Sample, "_\\d+_h$", ""),
+    Time = str_extract(Sample, "\\d+(?=_h$)")
+  )
+
+# Create color functions
+col_fun_rel <- colorRamp2(
+  c(0, quantile(mat_rel, 0.5), max(mat_rel)),
+  c("white", "yellow", "red")
+)
+
+col_fun_counts <- colorRamp2(
+  c(0, quantile(mat_counts[mat_counts > 0], 0.5, na.rm = TRUE), max(mat_counts)),
+  c("white", "lightblue", "darkblue")
+)
+
+# Column annotation colors
+broth_colors <- setNames(
+  brewer.pal(length(unique(col_anno_df$Broth)), "Set2"),
+  unique(col_anno_df$Broth)
+)
+
+time_colors <- setNames(
+  colorRampPalette(brewer.pal(9, "YlOrRd"))(length(unique(col_anno_df$Time))),
+  sort(unique(col_anno_df$Time))
+)
+
+# Column annotations
+ha_col <- HeatmapAnnotation(
+  Broth = col_anno_df$Broth,
+  Time = col_anno_df$Time,
+  col = list(
+    Broth = broth_colors,
+    Time = time_colors
+  ),
+  annotation_name_side = "left",
+  annotation_legend_param = list(
+    Broth = list(title = "Broth Type"),
+    Time = list(title = "Time (h)")
+  )
+)
+
+# Create cell annotation function to show read counts
+cell_fun <- function(j, i, x, y, width, height, fill) {
+  if(mat_counts[i, j] > 0) {
+    count_val <- round(mat_counts[i, j])
+    if(count_val >= 100) {
+      grid.text(sprintf("%.0f", count_val), x, y, 
+                gp = gpar(fontsize = 6, col = "black"))
+    }
+  }
+}
+
+# VERSION 1: Relative abundance heatmap with read count annotations
+ht_rel_annotated <- Heatmap(
+  mat_rel * 100,  # Convert to percentage
+  name = "Relative\nAbundance (%)",
+  col = col_fun_rel,
+  
+  # Clustering
+  cluster_rows = FALSE,
+  cluster_columns = FALSE,
+  
+  # Column settings
+  column_title = "Enrichment Broths and Incubation Times",
+  column_names_rot = 45,
+  column_names_gp = gpar(fontsize = 8),
+  top_annotation = ha_col,
+  
+  # Row settings
+  row_title = "Genus",
+  row_names_gp = gpar(fontsize = 9, fontface = "italic"),
+  
+  # Cell annotations
+  cell_fun = cell_fun,
+  
+  # Heatmap appearance
+  border = TRUE,
+  rect_gp = gpar(col = "white", lwd = 1),
+  
+  # Legend
+  heatmap_legend_param = list(
+    title = "Relative\nAbundance (%)",
+    at = c(0, 25, 50, 75, 100),
+    labels = c("0", "25", "50", "75", "100"),
+    direction = "vertical"
+  )
+)
+
+# VERSION 2: Side-by-side heatmaps (relative abundance + read counts)
+ht_rel <- Heatmap(
+  mat_rel * 100,
+  name = "Rel. Ab. (%)",
+  col = col_fun_rel,
+  cluster_rows = FALSE,
+  cluster_columns = FALSE,
+  column_title = "Relative Abundance",
+  column_names_rot = 45,
+  column_names_gp = gpar(fontsize = 8),
+  row_names_gp = gpar(fontsize = 9, fontface = "italic"),
+  top_annotation = ha_col,
+  show_row_names = TRUE,
+  border = TRUE,
+  rect_gp = gpar(col = "white", lwd = 1),
+  heatmap_legend_param = list(
+    title = "Rel. Ab. (%)",
+    direction = "vertical"
+  )
+)
+
+ht_counts <- Heatmap(
+  mat_counts,
+  name = "Read Counts",
+  col = col_fun_counts,
+  cluster_rows = FALSE,
+  cluster_columns = FALSE,
+  column_title = "Read Counts",
+  column_names_rot = 45,
+  column_names_gp = gpar(fontsize = 8),
+  row_names_gp = gpar(fontsize = 9, fontface = "italic"),
+  show_row_names = FALSE,
+  border = TRUE,
+  rect_gp = gpar(col = "white", lwd = 1),
+  heatmap_legend_param = list(
+    title = "Read Counts",
+    direction = "vertical"
+  )
+)
+
+# VERSION 3: Log-scaled relative abundance with read count text
+mat_rel_log <- log10(mat_rel * 100 + 0.1)  # Add pseudocount before log
+
+cell_fun_text <- function(j, i, x, y, width, height, fill) {
+  count_val <- round(mat_counts[i, j])
+  if(count_val > 0) {
+    grid.text(sprintf("%d", count_val), x, y, 
+              gp = gpar(fontsize = 5, col = ifelse(mat_rel_log[i, j] > median(mat_rel_log), "white", "black")))
+  }
+}
+
+ht_log_annotated <- Heatmap(
+  mat_rel_log,
+  name = "Log10(Rel. Ab.%)",
+  col = colorRamp2(
+    c(min(mat_rel_log), median(mat_rel_log), max(mat_rel_log)),
+    c("white", "orange", "darkred")
+  ),
+  cluster_rows = FALSE,
+  cluster_columns = FALSE,
+  column_title = "Log10 Relative Abundance (%) with Read Counts",
+  column_names_rot = 45,
+  column_names_gp = gpar(fontsize = 8),
+  top_annotation = ha_col,
+  row_names_gp = gpar(fontsize = 9, fontface = "italic"),
+  cell_fun = cell_fun_text,
+  border = TRUE,
+  rect_gp = gpar(col = "white", lwd = 1),
+  heatmap_legend_param = list(
+    title = "Log10(Rel. Ab.%)",
+    direction = "vertical"
+  )
+)
+
+# Save plots
+png("heatmap_genera_annotated.png", width = 14, height = 10, units = "in", res = 600)
+draw(ht_rel_annotated, 
+     column_title = "Top 20 Genera Across Enrichment Broths\nRelative Abundance (%) with Read Counts",
+     padding = unit(c(2, 2, 2, 10), "mm"))
+dev.off()
+
+png("heatmap_genera_sidebyside.png", width = 16, height = 10, units = "in", res = 600)
+draw(ht_rel + ht_counts, 
+     column_title = "Top 20 Genera Across Enrichment Broths",
+     padding = unit(c(2, 2, 2, 10), "mm"))
+dev.off()
+
+png("heatmap_genera_log_annotated.png", width = 14, height = 10, units = "in", res = 600)
+draw(ht_log_annotated,
+     padding = unit(c(2, 2, 2, 10), "mm"))
+dev.off()
+
+# Optional: Create a summary table with both metrics
+summary_table <- df_top_rel %>%
+  left_join(
+    df_top_counts %>% 
+      select(Broth, Incubation_hr, Genus, ReadCounts = Abundance),
+    by = c("Broth", "Incubation_hr", "Genus")
+  ) %>%
+  group_by(Broth, Incubation_hr, Genus) %>%
+  summarise(
+    Mean_RelAbundance = mean(Abundance, na.rm = TRUE) * 100,
+    Mean_ReadCounts = mean(ReadCounts, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(Broth, Incubation_hr, desc(Mean_RelAbundance))
+
+write.csv(summary_table, "genera_abundance_summary.csv", row.names = FALSE)
+
+# Print summary
+cat("\nTop genera by total relative abundance:\n")
+print(
+  df_top_rel %>%
+    group_by(Genus) %>%
+    summarise(Total_RA = sum(Abundance) * 100, .groups = "drop") %>%
+    arrange(desc(Total_RA)) %>%
+    head(10)
+)
+
+cat("\nHeatmaps saved:\n")
+cat("1. heatmap_genera_annotated.png - Relative abundance with read counts overlaid\n")
+cat("2. heatmap_genera_sidebyside.png - Side-by-side comparison\n")
+cat("3. heatmap_genera_log_annotated.png - Log-scaled with read counts\n")
+cat("4. genera_abundance_summary.csv - Summary table exported\n")
+
+```
+
+
+
+```{r}
+# -----------------------------------
+# Agglomerate at Family level
+# -----------------------------------
+
+ps_Family_all_broths <- tax_glom(
+  ps_enrichment_testing,
+  taxrank = "Family",
+  NArm = FALSE
+)
+
+ps_Family_all_broths <- prune_taxa(
+  taxa_sums(ps_Family_all_broths) > 0,
+  ps_Family_all_broths
+)
+
+# -----------------------------------
+# Transform to relative abundance
+# -----------------------------------
+
+ps_Family_rel_all_broths <- transform_sample_counts(
+  ps_Family_all_broths,
+  function(x) x / sum(x)
+)
+
+# -----------------------------------
+# Convert to long format & clean taxonomy
+# -----------------------------------
+
+df_all_broths_Family <- psmelt(ps_Family_rel_all_broths) %>%
+  mutate(
+    Broth = trimws(as.character(Broth)),
+    Incubation_hr = as.numeric(Incubation_hr),
+    Family = ifelse(
+      is.na(Family) | Family == "",
+      "Unassigned",
+      as.character(Family)
+    )
+  )
+
+# -----------------------------------
+# Identify top 12 Families overall
+# -----------------------------------
+
+topN <- 20
+
+top_Family_all_broths <- df_all_broths_Family %>%
+  group_by(Family) %>%
+  summarise(
+    tot = sum(Abundance, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(tot)) %>%
+  slice_head(n = topN) %>%
+  pull(Family)
+
+# -----------------------------------
+# Collapse non-top Families into "Other"
+# -----------------------------------
+
+df_all_broths_Family <- df_all_broths_Family %>%
+  mutate(
+    Family = ifelse(
+      Family %in% top_Family_all_broths,
+      Family,
+      "Other"
+    )
+  )
+
+# -----------------------------------
+# Order legend by total abundance (Other last)
+# -----------------------------------
+
+Family_order_all <- df_all_broths_Family %>%
+  group_by(Family) %>%
+  summarise(
+    tot = sum(Abundance, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(tot)) %>%
+  pull(Family)
+
+Family_order_all <- c(setdiff(Family_order_all, "Other"), "Other")
+
+df_all_broths_Family$Family <- factor(
+  df_all_broths_Family$Family,
+  levels = Family_order_all
+)
+
+# -----------------------------------
+# Palette (Paired, grey for Other)
+# -----------------------------------
+
+n_family <- length(levels(df_all_broths_Family$Family))
+
+pal_family_all <- colorRampPalette(
+  brewer.pal(20, "Paired")
+)(n_family)
+
+names(pal_family_all) <- levels(df_all_broths_Family$Family)
+pal_family_all["Other"] <- "grey85"
+
+pal_family_all
+
+# -----------------------------------
+# Plot: faceted stacked bars (Family)
+# -----------------------------------
+
+plot_top_family_all_broths <- df_all_broths_Family %>%
+  group_by(Broth, Sample, Incubation_hr, Family) %>%
+  summarise(
+    Abundance = sum(Abundance),
+    .groups = "drop"
+  ) %>%
+  ggplot(
+    aes(
+      x = Incubation_hr,
+      y = Abundance,
+      fill = Family
+    )
+  ) +
+  geom_col(
+    width = 2,
+    color = "white",
+    linewidth = 0.25
+  ) +
+  facet_wrap(~ Broth, ncol = 2) +
+  scale_x_continuous(breaks = c(0, 4, 8, 12, 24)) +
+  scale_y_continuous(labels = percent_format()) +
+  scale_fill_manual(values = pal_family_all, drop = FALSE) +
+    guides(fill = guide_legend(ncol = 1)) +
+  labs(
+    x = "Incubation (h)",
+    y = "Relative abundance",
+    fill = "Family",
+    title = 
+      "Relative abundance of top 20 families for enrichment broths during incubation"
+    ) +
+  theme_bw() +
+  theme(
+    panel.grid.minor = element_blank(),
+    legend.key.height = unit(0.45, "cm")
+  )
+
+# Display
+plot_top_family_all_broths
+
+# Save
+ggsave(
+  "plot_top_family_all_broths.png",
+  plot  = plot_top_family_all_broths,
+  width = 12,
+  height = 8,
+  dpi   = 600
+)
+
+```
+
+###Target Pathogen Analysis - How much Campylobacter and Salmonella in broths?
+
+```{r ALl broths: Campylobacter and Salmoenlla present vs. All other bacteria}
+# ===== CAMPYLOBACTER AND SALMONELLA FOCUSED GRAPHS - ALL ENRICHMENT BROTHS =====
+
+# Extract and clean sample metadata
+sample_metadata_pathogens <- as.data.frame(sample_data(ps_enrichment_testing))
+sample_metadata_pathogens$Broth <- trimws(as.character(sample_metadata_pathogens$Broth))
+sample_metadata_pathogens$Incubation_hr <- as.numeric(gsub("[^0-9.]", "", as.character(sample_metadata_pathogens$Incubation)))
+
+# Update phyloseq object with cleaned metadata
+sample_data(ps_enrichment_testing)$Broth <- sample_metadata_pathogens$Broth
+sample_data(ps_enrichment_testing)$Incubation_hr <- sample_metadata_pathogens$Incubation_hr
+
+# Subset to samples with valid metadata
+ps_all_broths <- subset_samples(ps_enrichment_testing, ! is.na(Broth) & !is.na(Incubation_hr))
+ps_all_broths <- prune_taxa(taxa_sums(ps_all_broths) > 0, ps_all_broths)
+
+# Define function to create "target vs other" dataframe
+target_vs_other_df <- function(ps, taxrank, target_values, target_label) {
+  # Agglomerate at specified taxonomic rank
+  ps_rank <- tax_glom(ps, taxrank = taxrank, NArm = FALSE)
+  ps_rank <- prune_taxa(taxa_sums(ps_rank) > 0, ps_rank)
+  
+  # Transform to relative abundance
+  ps_rel  <- transform_sample_counts(ps_rank, function(x) x / sum(x))
+
+  # Convert to long format and categorize
+  df <- psmelt(ps_rel) %>%
+    mutate(
+      Taxon = .data[[taxrank]],
+      Taxon = ifelse(is.na(Taxon) | Taxon == "", "Unassigned", as.character(Taxon)),
+      Focus = ifelse(Taxon %in% target_values, target_label, "Other")
+    ) %>%
+    group_by(Broth, Sample, Incubation_hr, Focus) %>%
+    summarise(Abundance = sum(Abundance), .groups = "drop") %>%
+    mutate(Focus = factor(Focus, levels = c(target_label, "Other")))
+
+  df
+}
+
+# ===== Campylobacter Analysis =====
+df_campylobacter <- target_vs_other_df(
+  ps = ps_all_broths,
+  taxrank = "Genus",
+  target_values = c("Campylobacter"),
+  target_label = "Campylobacter"
+)
+
+plot_campylobacter_enrichment <- ggplot(
+  df_campylobacter,
+  aes(x = Incubation_hr, y = Abundance, fill = Focus)
+) +
+  geom_col(width = 3, color = "white", linewidth = 0.25) +
+  facet_wrap(~ Broth, ncol = 2) +
+  scale_x_continuous(breaks = c(0, 4, 8, 12, 24)) +
+  scale_y_continuous(labels = percent_format()) +
+  scale_fill_manual(
+    values = c(
+      "Campylobacter" = "#1b9e77",
+      "Other" = "grey85"
+    ),
+    labels = c(
+      expression(italic("Campylobacter")),
+      "Other"
+    )
+  ) +
+  guides(fill = guide_legend(ncol = 1)) +
+  labs(
+    x = "Incubation (h)",
+    y = "Relative abundance",
+    fill = NULL,
+    title = expression(
+      italic("Campylobacter") ~ "vs other bacteria (all enrichment broths)"
+    )
+  ) +
+  theme_bw() +
+  theme(panel.grid.minor = element_blank())
+
+plot_campylobacter_enrichment
+
+ggsave(
+  "plot_Campylobacter_BB+CAT.png",
+  plot  = plot_campylobacter_enrichment,
+  width = 12,
+  height = 8,
+  dpi   = 600
+)
+
+
+library(phyloseq)
+library(dplyr)
+library(ggplot2)
+library(scales)
+
+# ---- Clean sample metadata ----
+sample_metadata <- as.data.frame(sample_data(ps_enrichment_testing))
+
+sample_metadata$Broth <- trimws(as.character(sample_metadata$Broth))
+sample_metadata$Incubation_hr <- as.numeric(
+  gsub("[^0-9.]", "", as.character(sample_metadata$Incubation))
+)
+
+sample_data(ps_enrichment_testing)$Broth <- sample_metadata$Broth
+sample_data(ps_enrichment_testing)$Incubation_hr <- sample_metadata$Incubation_hr
+
+# ---- Subset to valid samples ----
+ps_pathogens <- subset_samples(
+  ps_enrichment_testing,
+  !is.na(Broth) & !is.na(Incubation_hr)
+)
+ps_pathogens <- prune_taxa(taxa_sums(ps_pathogens) > 0, ps_pathogens)
+
+# ---- Agglomerate at Genus level ----
+ps_genus <- tax_glom(ps_pathogens, taxrank = "Genus", NArm = FALSE)
+ps_genus <- prune_taxa(taxa_sums(ps_genus) > 0, ps_genus)
+
+# ---- Convert to relative abundance ----
+ps_rel <- transform_sample_counts(ps_genus, function(x) x / sum(x))
+
+# ---- Melt and classify taxa ----
+df_pathogens <- psmelt(ps_rel) %>%
+  mutate(
+    Genus = trimws(as.character(Genus)),
+    Genus = ifelse(is.na(Genus) | Genus == "", "Unassigned", Genus),
+    Group = case_when(
+      grepl("^Salmonella", Genus, ignore.case = TRUE)  ~ "Salmonella",
+      grepl("^Escherichia", Genus, ignore.case = TRUE) ~ "Escherichia (E. coli)",
+      TRUE                                              ~ "Other"
+    )
+  ) %>%
+  group_by(Broth, Sample, Incubation_hr, Group) %>%
+  summarise(Abundance = sum(Abundance), .groups = "drop") %>%
+  mutate(
+    Group = factor(
+      Group,
+      levels = c("Salmonella", "Escherichia (E. coli)", "Other")
+    )
+  )
+
+# ---- Plot ----
+plot_pathogen_enrichment <- ggplot(
+  df_pathogens,
+  aes(x = Incubation_hr, y = Abundance, fill = Group)
+) +
+  geom_col(width = 0.6, color = "white", linewidth = 0.25) +
+  facet_wrap(~ Broth, ncol = 2) +
+  scale_x_continuous(breaks = c(0, 4, 8, 12, 24)) +
+  scale_y_continuous(labels = scales::percent_format()) +
+  scale_fill_manual(
+    values = c(
+      "Salmonella" = "#d95f02",
+      "Escherichia (E. coli)" = "#1b9e77",
+      "Other" = "grey85"
+    ),
+    labels = c(
+      expression(italic("Salmonella")),
+      expression(italic("Escherichia coli")),
+      "Other"
+    )
+  ) +
+  guides(fill = guide_legend(ncol = 1)) +
+  labs(
+    x = "Incubation (h)",
+    y = "Relative abundance",
+    fill = NULL,
+    title = expression(
+      italic("Salmonella") * ", " *
+      italic("Escherichia coli") *
+      ", and other bacteria across enrichment broths"
+    )
+  ) +
+  theme_bw() +
+  theme(
+    panel.grid.minor = element_blank(),
+    panel.border = element_blank()
+  )
+
+plot_pathogen_enrichment
+
+# ---- Save ----
+ggsave(
+  "plot_pathogen_enrichment_all_broths.png",
+  plot  = plot_pathogen_enrichment,
+  width = 12,
+  height = 8,
+  dpi   = 600
+)
+
+
+   
+```
+
+```{r}
+
+# Agglomerate at Genus level (keeps "Salmonella" if present)
+ps_genus <- tax_glom(ps_enrichment_testing, taxrank = "Genus", NArm = FALSE)
+
+# Melt to long format
+dfg <- psmelt(ps_genus) %>%
+  mutate(
+    Broth = trimws(as.character(Broth)),
+    Genus = ifelse(is.na(Genus) | Genus == "", "Unassigned", as.character(Genus))
+  )
+
+# Filter to BPW + RVS and Salmonella genus
+df_sal <- dfg %>%
+  filter(Genus == "Salmonella") %>%
+  group_by(Broth) %>%
+  summarise(
+    n_samples_with_salmonella = sum(Abundance > 0, na.rm = TRUE),
+    total_reads_salmonella = sum(Abundance, na.rm = TRUE),
+    max_reads_in_a_sample = max(Abundance, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+df_sal
+
+
+```
+
+
+```{r}
+library(phyloseq)
+library(dplyr)
+library(ggplot2)
+library(RColorBrewer)
+library(scales)
+library(grid)  # for unit()
+
+# ---- 1) Clean metadata + subset to Bolton broths ----
+md <- as.data.frame(sample_data(ps_enrichment_testing))
+md$Broth <- trimws(as.character(md$Broth))
+md$Incubation_hr <- as.numeric(gsub("[^0-9.]", "", as.character(md$Incubation)))
+sample_data(ps_enrichment_testing)$Broth <- md$Broth
+sample_data(ps_enrichment_testing)$Incubation_hr <- md$Incubation_hr
+
+bolton_broths <- c("BF Bolton base", "BF Bolton base w CAT")
+ps_bolton <- subset_samples(ps_enrichment_testing, Broth %in% bolton_broths)
+ps_bolton <- prune_taxa(taxa_sums(ps_bolton) > 0, ps_bolton)
+
+# ---- 2) Agglomerate to Species ----
+ps_species <- tax_glom(ps_bolton, taxrank = "Species", NArm = FALSE)
+ps_species <- prune_taxa(taxa_sums(ps_species) > 0, ps_species)
+
+# ---- 3) Melt to long dataframe ----
+df <- psmelt(ps_species) %>%
+  mutate(
+    Broth = trimws(as.character(Broth)),
+    Incubation_hr = as.numeric(Incubation_hr),
+    Species = ifelse(is.na(Species) | Species == "", "Unassigned", as.character(Species)),
+    Genus = ifelse(is.na(Genus) | Genus == "", "Unassigned", as.character(Genus))
+  )
+
+# ---- 4) Compute relative abundance across all taxa ----
+df <- df %>%
+  group_by(Sample) %>%
+  mutate(Abundance_rel = Abundance / sum(Abundance)) %>%
+  ungroup()
+
+# ---- 5) Keep top Campylobacter species; rest = Other ----
+topN <- 8
+top_species <- df %>%
+  filter(Genus == "Campylobacter") %>%
+  group_by(Species) %>%
+  summarise(total = sum(Abundance_rel, na.rm = TRUE), .groups = "drop") %>%
+  arrange(desc(total)) %>%
+  slice_head(n = topN) %>%
+  pull(Species)
+
+df <- df %>%
+  mutate(
+    Species2 = case_when(
+      Genus == "Campylobacter" & Species %in% top_species ~ Species,
+      TRUE ~ "Other"
+    )
+  )
+
+# ---- 6) Order legend: top species first, Unassigned, then Other ----
+species_order <- df %>%
+  group_by(Species2) %>%
+  summarise(total = sum(Abundance_rel, na.rm = TRUE), .groups = "drop") %>%
+  arrange(desc(total)) %>%
+  pull(Species2)
+
+# Make sure Unassigned and Other are last
+species_order <- c(setdiff(species_order, c("Unassigned", "Other")), "Unassigned", "Other")
+df$Species2 <- factor(df$Species2, levels = species_order)
+
+# ---- 7) Color palette ----
+n_species <- length(levels(df$Species2))
+pal <- colorRampPalette(brewer.pal(12, "Paired"))(n_species)
+names(pal) <- levels(df$Species2)
+pal["Other"] <- "grey85"
+pal["Unassigned"] <- "grey65"  # optional: distinguish from Other
+
+# ---- 8) Plot stacked bars ----
+plot_campy_species_bolton <- df %>%
+  group_by(Broth, Sample, Incubation_hr, Species2) %>%
+  summarise(Abundance_rel = sum(Abundance_rel), .groups = "drop") %>%
+  ggplot(aes(x = Incubation_hr, y = Abundance_rel, fill = Species2)) +
+  geom_col(width = 0.9, color = "white", linewidth = 0.25) +
+  facet_wrap(~ Broth, ncol = 1) +
+  scale_x_continuous(breaks = c(0, 4, 8, 12, 24)) +
+  scale_y_continuous(labels = percent_format()) +
+  scale_fill_manual(
+    values = pal,
+    drop = FALSE,
+    labels = function(x) {
+      ifelse(
+        x %in% c("Other", "Unassigned"),
+        x,
+        parse(text = paste0("italic('", x, "')"))
+      )
+    }
+  ) +
+  labs(
+    x = "Incubation (h)",
+    y = "Relative abundance (all bacteria)",
+    fill = "Species",
+    title = "Relative abundance of" ~ 
+      italic("Campylobacter") ~ "species in Bolton broths"
+  ) +
+  theme_bw(base_size = 16) +
+  theme(
+    panel.grid = element_blank(),
+    legend.key.height = unit(0.45, "cm")
+  )
+
+
+plot_campy_species_bolton
+
+ggsave(
+  "plot_Campylobacter_BB_CAT_RA_(all-bacteria).png",
+  plot  = plot_campy_species_bolton,
+  width = 12,
+  height = 8,
+  dpi   = 600
+)
+
+```
+
+```{r Enrichment: Campylobacter species vs all other bacteria (Bolton broths) + results table}
+
+# ---------- 1) Clean metadata + subset to Bolton broths ----------
+md <- as.data.frame(sample_data(ps_enrichment_testing))
+md$Broth <- trimws(as.character(md$Broth))
+md$Incubation_hr <- as.numeric(gsub("[^0-9.]", "", as.character(md$Incubation)))
+sample_data(ps_enrichment_testing)$Broth <- md$Broth
+sample_data(ps_enrichment_testing)$Incubation_hr <- md$Incubation_hr
+
+bolton_broths <- c("BF Bolton base", "BF Bolton base w CAT")
+
+ps_bolton <- subset_samples(ps_enrichment_testing, Broth %in% bolton_broths)
+ps_bolton <- prune_taxa(taxa_sums(ps_bolton) > 0, ps_bolton)
+
+# ---------- 2) Make TWO views: raw counts (for table) + relative abundance (for plot) ----------
+# Agglomerate to Species for both
+ps_sp_counts <- tax_glom(ps_bolton, taxrank = "Species", NArm = FALSE)
+ps_sp_counts <- prune_taxa(taxa_sums(ps_sp_counts) > 0, ps_sp_counts)
+
+ps_sp_rel <- transform_sample_counts(ps_sp_counts, function(x) x / sum(x))  # relative abundance of ALL bacteria
+
+df_counts <- psmelt(ps_sp_counts) %>%
+  mutate(
+    Broth = trimws(as.character(Broth)),
+    Incubation_hr = as.numeric(Incubation_hr),
+    Genus = ifelse(is.na(Genus) | Genus == "", "Unassigned", as.character(Genus)),
+    Species = ifelse(is.na(Species) | Species == "", "Unassigned", as.character(Species))
+  )
+
+df_rel <- psmelt(ps_sp_rel) %>%
+  mutate(
+    Broth = trimws(as.character(Broth)),
+    Incubation_hr = as.numeric(Incubation_hr),
+    Genus = ifelse(is.na(Genus) | Genus == "", "Unassigned", as.character(Genus)),
+    Species = ifelse(is.na(Species) | Species == "", "Unassigned", as.character(Species))
+  )
+
+# ---------- 3) Determine "most common" Campylobacter species (by TOTAL READS, not RA) ----------
+# This prevents rare species from dominating because of normalization quirks
+topN <- 8  # change as desired
+
+top_campy_species <- df_counts %>%
+  filter(Genus == "Campylobacter") %>%
+  group_by(Species) %>%
+  summarise(total_reads = sum(Abundance, na.rm = TRUE), .groups = "drop") %>%
+  arrange(desc(total_reads)) %>%
+  slice_head(n = topN) %>%
+  pull(Species)
+
+# ---------- 4) Build plot dataframe: top Campylobacter species, everything else = Other ----------
+df_plot <- df_rel %>%
+  mutate(
+    Focus = case_when(
+      Genus == "Campylobacter" & Species %in% top_campy_species ~ Species,
+      TRUE ~ "Other"
+    )
+  ) %>%
+  group_by(Broth, Sample, Incubation_hr, Focus) %>%
+  summarise(Abundance = sum(Abundance), .groups = "drop")
+
+# Order legend: top species first, Other last (ordered by total abundance in plot space)
+focus_order <- df_plot %>%
+  group_by(Focus) %>%
+  summarise(tot = sum(Abundance, na.rm = TRUE), .groups = "drop") %>%
+  arrange(desc(tot)) %>%
+  pull(Focus)
+focus_order <- c(setdiff(focus_order, "Other"), "Other")
+df_plot$Focus <- factor(df_plot$Focus, levels = focus_order)
+
+# Colors: species get distinct colors; Other grey
+n_focus <- length(levels(df_plot$Focus))
+pal <- colorRampPalette(brewer.pal(12, "Paired"))(n_focus)
+names(pal) <- levels(df_plot$Focus)
+pal["Other"] <- "grey85"
+
+plot_campy_species_allbacteria <- ggplot(df_plot, aes(x = Incubation_hr, y = Abundance, fill = Focus)) +
+  geom_col(width = 2, color = "white", linewidth = 0.25) +
+  facet_wrap(~Broth, ncol = 1) +
+  scale_x_continuous(breaks = c(0, 4, 8, 12, 24)) +
+  scale_y_continuous(labels = percent_format()) +
+  scale_fill_manual(values = pal, drop = FALSE) +
+  labs(
+    x = "Incubation (h)",
+    y = "Relative abundance (all bacteria)",
+    fill = "Campylobacter species",
+    title = paste0("Campylobacter species (top ", topN, ") vs all other bacteria (Bolton broths)")
+  ) +
+  theme_bw(base_size = 16) +
+  theme(
+    panel.grid = element_blank(),
+    legend.key.height = unit(0.45, "cm")
+  )
+
+plot_campy_species_allbacteria
+
+# Optional save
+ggsave(
+  filename = "16S_Campylobacter_species_vs_other_allbacteria_Bolton.png",
+  plot = plot_campy_species_allbacteria,
+  width = 10, height = 8, dpi = 300
+)
+
+# ---------- 5) Results table: species, broth, incubation time, read count ----------
+# (Shows even low-count species; can filter later if too big)
+
+campy_table <- df_counts %>%
+  filter(Genus == "Campylobacter") %>%
+  group_by(Broth, Incubation_hr, Species) %>%
+  summarise(Read_Count = sum(Abundance, na.rm = TRUE), .groups = "drop") %>%
+  arrange(Broth, Incubation_hr, desc(Read_Count))
+
+campy_table
+
+# Optional: write to CSV
+write.csv(campy_table, "Campylobacter_species_read_counts_Bolton_broths.csv", row.names = FALSE)
+
+# Optional: a wide version for easier viewing (Species x time within each broth)
+campy_table_wide <- campy_table %>%
+  tidyr::pivot_wider(names_from = Incubation_hr, values_from = Read_Count, values_fill = 0) %>%
+  arrange(Broth, desc(rowSums(across(where(is.numeric)))))
+
+campy_table_wide
+```
+
+
+##Stats - Bolton broths - Campylobacter
+
+```{r}
+
+library(dplyr)
+library(tidyr)
+library(stringr)
+
+# ---- 1) Summarize total Campylobacter relative abundance per sample ----
+campy_summary <- df %>%
+  group_by(Broth, Sample, Incubation_hr) %>%
+  summarise(Campylobacter_rel = sum(Abundance_rel[Genus == "Campylobacter"], na.rm = TRUE),
+            .groups = "drop")
+
+# ---- 2) Create a common replicate ID ----
+campy_summary <- campy_summary %>%
+  mutate(
+    Replicate = str_remove(Sample, "\\d+$")  # remove trailing digits (the time point)
+  )
+campy_summary
+
+# ---- 3) Filter only 0h and 24h ----
+campy_0_24 <- campy_summary %>%
+  filter(Incubation_hr %in% c(0, 24))
+
+campy_0_24
+
+# ---- 4) Reshape to wide format using replicate ID ----
+campy_wide <- campy_0_24 %>%
+  select(Broth, Replicate, Incubation_hr, Campylobacter_rel) %>%
+  pivot_wider(names_from = Incubation_hr,
+              values_from = Campylobacter_rel,
+              names_prefix = "h") %>%
+  drop_na(h0, h24)  # only keep replicates with both 0h and 24h
+
+campy_wide
+
+# ---- 5) Check number of paired replicates per broth ----
+campy_wide %>% group_by(Broth) %>% summarise(n_pairs = n())
+
+
+ggplot(campy_0_24, aes(x = Incubation_hr, y = Campylobacter_rel, group = Replicate)) +
+  geom_line(aes(color = Replicate), size = 1) +
+  geom_point(size = 3) +
+  scale_x_continuous(breaks = c(0, 24)) +
+  scale_y_continuous(labels = scales::percent_format()) +
+  labs(
+    x = "Incubation (h)",
+    y = "Relative abundance (all bacteria)",
+    title = "Campylobacter enrichment in Bolton broths"
+  ) +
+  theme_bw(base_size = 14) +
+  theme(legend.position = "none")
+
+
+```
+
+
+
+
+#Host-DNA Depletion Analysis
+
+##Host-DNA depletion samples
+
+```{r}
+#Filtering samples by condition - Host-DNA depletion
+samples.out
+
+Hostdepletion_originalnames <- c("HCh1", "HCh1ND", "HCh2", "HCh2ND", "HCh3", "HCh3ND", "HChCAT1", "HChCAT1ND", "HChCAT2", "HChCAT2ND", "HChCAT3", "HChCAT3ND", "HChRVS1", "HChRVS1ND", "HChRVS2", "HChRVS2ND", "HChRVS3", "HChRVS3ND", "NHCh1", "NHCh2", "NHCh3", "NHChCAT1", "NHChCAT2", "NHChCAT3", "NHChRVS1", "NHChRVS2", "NHChRVS3", "NHChRVSB")
+
+Hostdepletion_originalnames
+
+hostdepletion <- Hostdepletion_originalnames[Hostdepletion_originalnames %in% samples.out]
+
+hostdepletion
+
+hostdepletion <- gsub("^NH", "No Host-DNA depletion ", hostdepletion)
+hostdepletion <- gsub("^H", "Host-DNA depletion ", hostdepletion)
+
+hostdepletion <- gsub("Ch", "Cheesecloth ", hostdepletion)
+
+hostdepletion <- gsub("F", "Filtered ", hostdepletion, fixed = TRUE)
+
+hostdepletion <- gsub("B", "Blank", hostdepletion, fixed = TRUE)
+
+hostdepletion <- gsub("CAT", "BFBB w CAT ", hostdepletion)
+
+hostdepletion <- gsub("Ce", "Centrifuge ", hostdepletion)
+
+hostdepletion <- gsub("RVS", "RVS ", hostdepletion)
+
+hostdepletion <- gsub("ND", "_No-dilution", hostdepletion)
+
+hostdepletion
+```
+
+#Create data table for Host-DNA depletion
+
+```{r}
+# Extract Host-DNA depletion status
+host_depletion_status <- str_extract(hostdepletion, "^(No Host-DNA depletion|Host-DNA depletion)")
+
+host_depletion_status
+
+  # Extracting 'No-dilution' status
+  no_dilution <- ifelse(grepl("_No-dilution", hostdepletion), "Diluted", "Not Diluted")
+no_dilution
+
+filtering_method <- str_extract(hostdepletion, "Cheesecloth|Filtered Centrifuge|Filtered")
+filtering_method
+
+incubation <- str_extract(hostdepletion, "BFBB w CAT|RVS")
+incubation
+
+# Replace NA with "No Incubation"
+incubation <- ifelse(is.na(incubation), "No Incubation", incubation)
+
+Blank_No <- str_extract(hostdepletion, "1|2|3|Blank")
+
+samdf2 <- data.frame("Name"=Hostdepletion_originalnames, "Sample_Name"=hostdepletion, "Host-DNA Depletion"=host_depletion_status, "Method of Filtering"=filtering_method, Incubation=incubation, Dilution=no_dilution, "Sample Number/Type"=Blank_No)
+
+samdf2
+
+rownames(samdf2) <- (Hostdepletion_originalnames)
+
+ps_hostDNAdep <- phyloseq(otu_table(seqtab.nochim, taxa_are_rows=FALSE), sample_data(samdf2), tax_table(taxa))
+
+### plotting diversity by day using the Shannon and Simpson measures
+
+plot_richness(ps_hostDNAdep, x="Host.DNA.Depletion", measures=c("Shannon", "Simpson"), color="Method.of.Filtering")
+
+```
+
+#Host-DNA depletion testing - filtered and filtered centrifuge samples
+
+```{r}
+
+# Select top 20 most abundant taxa
+ps_hostDNAdep <- tax_glom(ps_hostDNAdep, taxrank = "Family")
+
+top20_hostDNAdep <- names(sort(taxa_sums(ps_hostDNAdep), decreasing=TRUE))[1:20]
+
+# Normalize abundances
+ps_hostDNAdep.top20 <- transform_sample_counts(ps_hostDNAdep, function(OTU) OTU/sum(OTU))
+
+# Keep only top 20 taxa
+ps_hostDNAdep.top20 <- prune_taxa(top20_hostDNAdep, ps_hostDNAdep.top20)
+
+# Aggregate at Family level to combine taxa from the same Family
+ps_hostDNAdep.top20_family <- tax_glom(ps_hostDNAdep.top20, taxrank = "Family")
+
+
+ps_no_cheesecloth <- subset_samples(ps_hostDNAdep.top20_family, 
+                                    Method.of.Filtering != "Cheesecloth")
+
+
+
+#Combine labels in sample number and dilution column 
+sample_data(ps_no_cheesecloth)$Sample_both <- paste(
+  sample_data(ps_no_cheesecloth)$Sample.Number.Type, 
+  sample_data(ps_no_cheesecloth)$Dilution, 
+  sep = " - "
+)
+ps_no_cheesecloth
+
+
+# Generate the bar plot
+p4 <- plot_bar(ps_no_cheesecloth, 
+              x = "Sample_both", fill = "Family") + 
+     facet_wrap(~ Host.DNA.Depletion + Method.of.Filtering, scales = "free_x") + 
+     theme(axis.text.x = element_text(angle = 90, hjust = 0.5))
+p4
+
+
+jpeg(file="taxa20_hostDNAdepletion-wocheesecloth.jpg", height=1000, width=1800)
+# Final plot with clearer color grouping
+p4 +  # outline between segments
+  theme_bw(base_size = 16) +  # Increase base text size for everything
+  theme(
+    axis.text.x = element_text(size = 14, angle = 45, hjust = 1),
+    axis.text.y = element_text(size = 14),
+    axis.title.x = element_text(size = 16, face = "bold"),
+    axis.title.y = element_text(size = 16, face = "bold"),
+    legend.text = element_text(size = 14),
+    legend.title = element_text(size = 16, face = "bold"),
+    strip.text = element_text(size = 16),  # for facet labels
+    panel.grid = element_blank()
+  )
+dev.off()
+
+ps_no_cheesecloth_ra <- transform_sample_counts(ps_no_cheesecloth, function(x) 100 * x / sum(x))
+
+p_ra_nocheesecloth <- plot_bar(ps_no_cheesecloth_ra, 
+              x = "Sample_both", fill = "Family") + 
+     facet_wrap(~ Host.DNA.Depletion + Method.of.Filtering, scales = "free_x") + 
+     theme(axis.text.x = element_text(angle = 90, hjust = 0.5))
+p_ra_nocheesecloth
+
+#Relative abundance plot
+jpeg(file="taxa20_hostDNAdepletion-nocheesecloth_ra.jpg", height=1000, width=1800)
+p_ra_nocheesecloth +  # outline between segments
+  theme_bw(base_size = 16) +  # Increase base text size for everything
+  theme(
+    axis.text.x = element_text(size = 14, angle = 45, hjust = 1),
+    axis.text.y = element_text(size = 14),
+    axis.title.x = element_text(size = 16, face = "bold"),
+    axis.title.y = element_text(size = 16, face = "bold"),
+    legend.text = element_text(size = 14),
+    legend.title = element_text(size = 16, face = "bold"),
+    strip.text = element_text(size = 16),  # for facet labels
+    panel.grid = element_blank()
+  )
+dev.off()
+
+```
+
+#Host-DNA depletion samples - cheesecloth only RA
+
+```{r}
+ps_hostDNAdep.top20_family <- tax_glom(ps_hostDNAdep.top20, taxrank = "Family")
+
+ps_cheesecloth <- subset_samples(ps_hostDNAdep.top20_family, 
+                                    Method.of.Filtering != "Filtered")
+
+ps_cheesecloth <- subset_samples(ps_cheesecloth, 
+                                    Method.of.Filtering != "Filtered Centrifuge")
+
+sample_data(ps_cheesecloth)$Sample_both <- paste(
+  sample_data(ps_cheesecloth)$Sample.Number.Type, 
+  sample_data(ps_cheesecloth)$Dilution, 
+  sep = " - "
+)
+
+p_cheesecloth <- plot_bar(ps_cheesecloth, 
+              x = "Sample_both", fill = "Family") + 
+     facet_wrap(~ Host.DNA.Depletion + Method.of.Filtering, scales = "free_x") + 
+     theme(axis.text.x = element_text(angle = 90, hjust = 0.5))
+p_cheesecloth
+
+
+jpeg(file="taxa20_hostDNAdepletion-cheesecloth.jpg", height=1000, width=1800)
+p_cheesecloth +  # outline between segments
+  theme_bw(base_size = 16) +  # Increase base text size for everything
+  theme(
+    axis.text.x = element_text(size = 14, angle = 45, hjust = 1),
+    axis.text.y = element_text(size = 14),
+    axis.title.x = element_text(size = 16, face = "bold"),
+    axis.title.y = element_text(size = 16, face = "bold"),
+    legend.text = element_text(size = 14),
+    legend.title = element_text(size = 16, face = "bold"),
+    strip.text = element_text(size = 16),  # for facet labels
+    panel.grid = element_blank()
+  )
+dev.off()
+
+
+ps_cheesecloth_ra <- transform_sample_counts(ps_cheesecloth, function(x) 100 * x / sum(x))
+
+
+sample_data(ps_cheesecloth_ra)$Sample_both <- paste(
+  sample_data(ps_cheesecloth_ra)$Sample.Number.Type, 
+  sample_data(ps_cheesecloth_ra)$Dilution, 
+  sep = " - "
+)
+ps_cheesecloth_ra
+
+
+# Generate the bar plot for cheesecloth relative abundance
+p_cheesecloth_ra <- plot_bar(ps_cheesecloth_ra, 
+              x = "Sample_both", fill = "Family") + 
+     facet_wrap(~ Host.DNA.Depletion + Method.of.Filtering, scales = "free_x") + 
+     theme(axis.text.x = element_text(angle = 90, hjust = 0.5))
+p_cheesecloth_ra
+
+
+jpeg(file="taxa20_hostDNAdepletion-justcheesecloth_ra.jpg", height=1000, width=1800)
+# Final plot with clearer color grouping
+p_cheesecloth_ra +  # outline between segments
+  theme_bw(base_size = 16) +  
+  geom_bar(stat = "identity", position = "stack", color = "black") + 
+  theme(
+    axis.text.x = element_text(size = 14, angle = 45, hjust = 1),
+    axis.text.y = element_text(size = 14),
+    axis.title.x = element_text(size = 16, face = "bold"),
+    axis.title.y = element_text(size = 16, face = "bold"),
+    legend.text = element_text(size = 14),
+    legend.title = element_text(size = 16, face = "bold"),
+    strip.text = element_text(size = 16),  # for facet labels
+    panel.grid = element_blank()
+  )
+dev.off()
+
+```
+
+#Host-DNA depletion samples - enriched -
+
+```{r}
+ps_cheesecloth_incubation <- subset_samples(ps_hostDNAdep.top20_family, 
+                                    Method.of.Filtering != "Filtered")
+
+ps_cheesecloth_incubation <- subset_samples(ps_cheesecloth_incubation, 
+                                    Method.of.Filtering != "Filtered Centrifuge")
+
+ps_cheesecloth_incubation <- subset_samples(ps_cheesecloth_incubation, 
+                                    Incubation != "No Incubation")
+
+
+sample_data(ps_cheesecloth_incubation)$Sample_both <- paste(
+  sample_data(ps_cheesecloth_incubation)$Sample.Number.Type,
+  sample_data(ps_cheesecloth_incubation)$Dilution, 
+  sep = " - "
+)
+ps_cheesecloth_incubation
+
+
+ps_cheesecloth_incubation <- tax_glom(ps_cheesecloth_incubation, taxrank = "Family")
+
+# Generate the bar plot
+p_cheesecloth_incubation <- plot_bar(ps_cheesecloth_incubation, 
+              x = "Sample_both", fill = "Family") + 
+     facet_wrap(~ Host.DNA.Depletion + Incubation, scales = "free_x") + 
+     theme(axis.text.x = element_text(angle = 90, hjust = 0.5))
+p_cheesecloth_incubation
+
+jpeg(file="taxa20_hostDNAdepletion-enriched.jpg", height=1000, width=1800)
+# Final plot with clearer color grouping
+p_cheesecloth_incubation +  # outline between segments
+  theme_bw(base_size = 16) +  
+  geom_bar(stat = "identity", position = "stack", color = "black") + 
+  theme(
+    axis.text.x = element_text(size = 14, angle = 45, hjust = 1),
+    axis.text.y = element_text(size = 14),
+    axis.title.x = element_text(size = 16, face = "bold"),
+    axis.title.y = element_text(size = 16, face = "bold"),
+    legend.text = element_text(size = 14),
+    legend.title = element_text(size = 16, face = "bold"),
+    strip.text = element_text(size = 16),  # for facet labels
+    panel.grid = element_blank()
+  )
+dev.off()
+
+ps_cheesecloth_incubation_ra <- transform_sample_counts(ps_cheesecloth_incubation, function(x) 100 * x / sum(x))
+
+# Generate the bar plot
+p_cheesecloth_incubation_ra <- plot_bar(ps_cheesecloth_incubation_ra, 
+              x = "Sample_both", fill = "Family") + 
+     facet_wrap(~ Host.DNA.Depletion + Incubation, scales = "free_x") + 
+     theme(axis.text.x = element_text(angle = 90, hjust = 0.5))
+p_cheesecloth_incubation_ra
+
+jpeg(file="taxa20_hostDNAdepletion-enriched_ra.jpg", height=1000, width=1800)
+# Final plot with clearer color grouping
+p_cheesecloth_incubation_ra +  # outline between segments
+  theme_bw(base_size = 16) +  
+  geom_bar(stat = "identity", position = "stack", color = "black") + 
+  theme(
+    axis.text.x = element_text(size = 14, angle = 45, hjust = 1),
+    axis.text.y = element_text(size = 14),
+    axis.title.x = element_text(size = 16, face = "bold"),
+    axis.title.y = element_text(size = 16, face = "bold"),
+    legend.text = element_text(size = 14),
+    legend.title = element_text(size = 16, face = "bold"),
+    strip.text = element_text(size = 16),  # for facet labels
+    panel.grid = element_blank()
+  )
+dev.off()
+
+
+#Check for Salmonella  in RVS 
+subset_salmonella_host <- subset_taxa(ps_cheesecloth_incubation, Phylum %in% c("Pseudomonadota"))
+as.data.frame(tax_table(subset_salmonella_host))
+
+```
+
+#DNA Extraction kit comparisons
+
+```{r}
+#Filtering samples by condition - Host-DNA depletion
+samples.out
+
+dnakits_originalnames <- c("PRMgDNAUn", "PrMigDNA1", "PrMigDNA2", "PrMigDNA3", "QDnBT1", "QDnBT2", "QDnBT3", "QDnBTSp", "QDnBTUn", "ZymoMiPr1", "ZymoMiPr2", "ZymoMiPr3", "ZymoMiPrSp", "ZymoMIPrUn")
+
+dnakits_originalnames
+
+DNAkits <- dnakits_originalnames[dnakits_originalnames %in% samples.out]
+
+DNAkits
+
+DNAkits <- gsub("^PrMigDNA", "Presto Mini gDNA ", DNAkits)
+DNAkits <- gsub("^PRMgDNA", "Presto Mini gDNA ", DNAkits)
+
+DNAkits <- gsub("^QDnBT", "Qiagen DNeasy Blood & Tissue ", DNAkits)
+DNAkits <- gsub("^ZymoMiPr", "ZymoResearch DNA Miniprep ", DNAkits)
+DNAkits <- gsub("^ZymoMIPr", "ZymoResearch DNA Miniprep ", DNAkits)
+
+DNAkits <- gsub("Sp", "Spiked", DNAkits)
+DNAkits <- gsub("Un", "Unspiked", DNAkits)
+
+DNAkits
+
+```
+
+#Create data table for Host-DNA depletion
+
+```{r}
+DNAkit_type <- str_extract(DNAkits, "^(ZymoResearch DNA Miniprep|Qiagen DNeasy Blood & Tissue|Presto Mini gDNA)")
+
+DNAkit_type
+
+Spiking <- str_extract(DNAkits, "Unspiked|Spiked")
+Spiking
+Spiking <- ifelse(is.na(Spiking), "Chicken Rinse", Spiking)
+
+Number <- str_extract(DNAkits, "1|2|3")
+Number
+Number <- ifelse(is.na(Number), "Control", Number)
+
+samdf3 <- data.frame("DNA Kit"=DNAkit_type, "Sample"=Spiking, "Number/Type"=Number)
+
+samdf3
+
+rownames(samdf3) <- (dnakits_originalnames)
+
+
+DNAkits2 <- phyloseq(otu_table(seqtab.nochim, taxa_are_rows=FALSE), sample_data(samdf3), tax_table(taxa))
+
+DNAkits2
+
+sample_data(DNAkits2)$Name <- paste(
+  sample_data(DNAkits2)$Number,
+  sample_data(DNAkits2)$Sample, 
+  sep = " - "
+)
+
+```
+
+#Host-DNA depletion testing - filtered and filtered centrifuge samples
+
+```{r}
+DNAkits2 <- tax_glom(DNAkits2, taxrank = "Family")
+
+# Select top 20 most abundant taxa
+top20_dnakits <- names(sort(taxa_sums(DNAkits2), decreasing=TRUE))[1:20]
+
+# Normalize abundances
+DNAkits2.top20 <- transform_sample_counts(DNAkits2, function(OTU) OTU/sum(OTU))
+DNAkits2.top20
+
+# Keep only top 20 taxa
+DNAkits2.top20 <- prune_taxa(top20_dnakits, DNAkits2.top20)
+
+# Aggregate at Family level to combine taxa from the same Family
+DNAkits2.top20_family <- tax_glom(DNAkits2.top20, taxrank = "Family")
+
+DNAkits2.top20_family
+
+colours <- c("#72e5ef", "#c23165", "#aef815", "#6f3a93", "#56a221", "#cf60f3", "#2cf52b", "#fe16f4", "#93f993", "#bf7d9a", "#1c5f1e", "#f2c8e8", "#145a6a", "#d5ec9e", "#7c08c5", "#f3d426", "#0494fb", "#96a467", "#8e80fb", "#0ba47e")
+
+colours
+
+# Generate the bar plot
+p_DNA <- plot_bar(DNAkits2.top20_family, 
+              x = "Name", fill = "Family") + 
+  facet_wrap(~DNA.Kit, scales = "free_x") +
+     theme(axis.text.x = element_text(angle = 90, hjust = 0.5))
+
+p_DNA
+
+jpeg(file="taxa20_DNAkits.jpg", height=1000, width=1800)
+# Final plot with clearer color grouping
+p_DNA +  # outline between segments
+  theme_bw(base_size = 16) +  
+  geom_bar(stat = "identity", position = "stack", color = "black") + 
+  theme(
+    axis.text.x = element_text(size = 14, angle = 45, hjust = 1),
+    axis.text.y = element_text(size = 14),
+    axis.title.x = element_text(size = 16, face = "bold"),
+    axis.title.y = element_text(size = 16, face = "bold"),
+    legend.text = element_text(size = 14),
+    legend.title = element_text(size = 16, face = "bold"),
+    strip.text = element_text(size = 16),  # for facet labels
+    panel.grid = element_blank()
+  ) +
+  scale_fill_manual(values=colours)
+dev.off()
+
+```
+
+```{r}
+
+ps_DNAkits_ra <- transform_sample_counts(DNAkits2.top20_family, function(x) 100 * x / sum(x))
+
+p_DNAkits_ra <- plot_bar(ps_DNAkits_ra, 
+              x = "Name", fill = "Family") + 
+  facet_wrap(~DNA.Kit, scales = "free_x") +
+     theme(axis.text.x = element_text(angle = 90, hjust = 0.5))
+
+p_DNAkits_ra
+
+
+#Relative abundance plot
+jpeg(file="taxa20_DNAkits_ra.jpg", height=1000, width=1800)
+p_DNAkits_ra +  # outline between segments
+  theme_bw(base_size = 16) +  # Increase base text size for everything
+  theme(
+    axis.text.x = element_text(size = 14, angle = 45, hjust = 1),
+    axis.text.y = element_text(size = 14),
+    axis.title.x = element_text(size = 16, face = "bold"),
+    axis.title.y = element_text(size = 16, face = "bold"),
+    legend.text = element_text(size = 14),
+    legend.title = element_text(size = 16, face = "bold"),
+    strip.text = element_text(size = 16),  # for facet labels
+    panel.grid = element_blank()
+  )
+dev.off()
+
+```
+
+```{r}
+head(track)
+
+track_data <- data.frame(track)
+track_data
+
+
+library(pheatmap)
+
+
+track_data
+
+
+pheatmap(track_data,
+         cluster_rows = FALSE,
+         cluster_cols = FALSE,
+         color = colorRampPalette(c("white", "blue"))(100),
+         main = "Read Counts at Each Step",
+         fontsize_row = 10,     # adjust text size for row labels
+         fontsize_col = 10)     # adjust text size for column labels
+
+
+
+# Convert to a matrix (1 row or 1 column)
+nonchim_matrix <- as.matrix(track_data$nonchim)
+
+# Optionally set row/column names
+rownames(nonchim_matrix) <- rownames(track_data)
+colnames(nonchim_matrix) <- "nonchim"
+
+# Check rownames and colnames
+rownames(nonchim_matrix)
+colnames(nonchim_matrix)
+
+# If your sample names are the rownames of track_data
+nonchim_matrix <- as.matrix(track_data$nonchim)
+
+# Add rownames if missing
+rownames(nonchim_matrix) <- rownames(track_data)
+
+# Or, if you have sample names in another column (say, "SampleID")
+rownames(nonchim_matrix) <- track_data$SampleID
+
+
+
+# Then plot!
+pheatmap(t(nonchim_matrix), 
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         color = colorRampPalette(c("white", "#23238c"))(100),
+         labels_row = colnames(nonchim_matrix),
+         labels_col = rownames(nonchim_matrix))
+
+
+
+```
+
+```{r}
+
+library(aplot)
+
+combined_plot <- pheatmap %>% 
+  insert_right(p, width = 0.25)
+
+```
+
+```{r}
+library(ggplot2)
+library(reshape2)
+library(patchwork)  # for combining ggplots
+
+# Assuming nonchim_matrix is already defined
+# Let's transpose it, since pheatmap(t(nonchim_matrix)) was used
+heatmap_data <- t(nonchim_matrix)
+
+# Convert matrix to long format for ggplot2
+df_heatmap <- melt(heatmap_data)
+
+# Rename for clarity
+colnames(df_heatmap) <- c("Row", "Col", "Value")
+
+# Create the heatmap with ggplot2
+p_heatmap <- ggplot(df_heatmap, aes(x = Col, y = Row, fill = Value)) +
+  geom_tile() +
+  scale_fill_gradientn(colors = c("white", "#23238c")) +
+  theme_minimal() +
+  labs(x = NULL, y = NULL) +
+  theme(
+    axis.text.x = element_text(angle = 90, hjust = 1),
+    axis.title = element_blank()
+  )
+
+p_heatmap
+
+
+```
+
+```{r}
+library(phyloseq)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+# Convert phyloseq object to data.frame
+df <- phyloseq::psmelt(ps_enrichment_testing.top20_enrichment_testing)
+
+# Inspect the structure
+head(df)
+
+gg_p <- ggplot(df, aes(x = Incubation, y = Abundance, fill = Family)) +
+  geom_bar(stat = "identity", position = "stack", color = "black", linewidth=0.3) +
+  facet_wrap(~Broth, scales = "free_x") +  # Facet by Broth
+  theme_bw(base_size = 16) +  # Base font size
+  theme(
+    axis.text.x = element_text(size = 14, angle = 0, hjust = 0.5),
+    axis.text.y = element_text(size = 14),
+    axis.title.x = element_text(size = 16, face = "bold"),
+    axis.title.y = element_text(size = 16, face = "bold"),
+    legend.text = element_text(size = 14),
+    legend.title = element_text(size = 16, face = "bold"),
+    strip.text = element_text(size = 16),
+    panel.grid = element_blank()
+  ) +
+  labs(
+    x = "Incubation",
+    y = "Abundance",
+    fill = "Family"
+  )
+gg_p$data$Incubation <- factor(gg_p$data$Incubation, levels = sort(as.numeric(unique(gg_p$data$Incubation))))
+
+gg_p
+
+
+```
+
+```{r}
+# Load required libraries
+library(phyloseq)
+library(ggplot2)
+library(reshape2)
+
+# Extract OTU table (samples as columns)
+otu_mat <- as(otu_table(ps_enrichment_testing.top20_enrichment_testing), "matrix")
+
+# Make sure taxa are rows
+if(!taxa_are_rows(ps_enrichment_testing.top20_enrichment_testing)) {
+  otu_mat <- t(otu_mat)
+}
+
+# Inspect it
+dim(otu_mat)
+head(otu_mat)
+
+```
+
+```{r}
+# Extract sample metadata from the phyloseq object
+sample_metadata <- as.data.frame(sample_data(ps_enrichment_testing.top20_enrichment_testing))
+head(sample_metadata)
+
+# Add the Sample column to sample_metadata to make joining easier
+sample_metadata$Sample <- rownames(sample_metadata)
+
+# Join df_long with sample metadata on the Sample column
+df_long <- df_long %>%
+  left_join(sample_metadata, by = "Sample")
+
+head(df_long)
+
+# Summarize total reads by Sample, ignoring Family
+df_total_reads <- df_long %>%
+  group_by(Broth, Incubation) %>%
+  summarise(Total_Reads = sum(Reads, na.rm = TRUE))
+
+# View the summarized data
+head(df_total_reads)
+
+
+df_long$Incubation <- factor(df_long$Incubation, levels = sort(unique(df_long$Incubation)))
+
+```
+
+```{r}
+
+df_long$Reads_log <- log10(df_long$Reads + 1)
+
+# Extract the prefix (letters) and numeric parts
+df_long$Prefix <- gsub("[0-9]", "", df_long$Sample)
+df_long$Sample_num <- as.numeric(gsub("[A-Za-z]+", "", df_long$Sample))
+
+# Arrange the data by Prefix and then Sample_num
+df_long <- df_long %>%
+  arrange(Prefix, Sample_num)
+
+# Now reorder the Sample factor based on the sorted order
+df_long$Sample <- factor(df_long$Sample, levels = unique(df_long$Sample))
+
+
+# Now plot the heatmap with ordered sample names
+p_heatmap <- ggplot(df_long, aes(x = Sample, y = Family, fill = Reads)) +
+  geom_tile(color = "white") +  # White gridlines between tiles
+  scale_fill_gradient(low = "white", high = "#23238c") +  # Customize colors
+  theme_minimal(base_size = 14) +
+  theme(
+    axis.text.x = element_text(angle = 90, hjust = 1),
+    axis.text.y = element_text(size = 12),
+    legend.title = element_text(size = 14, face = "bold"),
+    legend.text = element_text(size = 12)
+  ) +
+  labs(x = "Sample", y = "Family", fill = "Read Count")
+
+# Show the heatmap
+p_heatmap
+
+```
+
+```{r}
+
+combined_plot <- p_heatmap + gg_p + plot_layout(ncol = 2)
+
+combined_plot
+
+```
+
+```{r}
+library(dplyr)
+
+# Summarize total reads per sample
+sample_reads <- df_long %>%
+  group_by(Sample) %>%
+  summarize(Total_Reads = sum(Reads)) %>%
+  arrange(Total_Reads)
+
+# View the summarized table
+sample_reads
+
+sample_reads$Sample <- factor(sample_reads$Sample, levels = sample_reads$Sample)
+
+library(ggplot2)
+
+p_total_reads_heatmap <- ggplot(sample_reads, aes(x = Sample, y = 1, fill = Total_Reads)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient(low = "white", high = "#23238c") +  # Adjust colors if needed
+  theme_minimal(base_size = 14) +
+  theme(
+    axis.text.x = element_text(angle = 90, hjust = 1),
+    axis.text.y = element_blank(),  # No y-axis because it's just one row
+    axis.title.y = element_blank(),
+    panel.grid = element_blank()
+  ) +
+  labs(x = "Sample", fill = "Total Reads", title = "Total Read Count per Sample")
+
+p_total_reads_heatmap
+
+```
+
+```{r}
+library(patchwork)
+
+# Assume you already have:
+# p_main = your main ggplot (e.g., bar plot, heatmap of families)
+# p_total_reads_heatmap = the heatmap or barplot of total reads per sample
+
+# Combine them vertically
+combined_plot_totalread <- gg_p / p_total_reads_heatmap  # '/' stacks them vertically
+
+# Show the plot
+combined_plot_totalread
+
+
+
+
+```
+
+```{r}
+library(ggplot2)
+library(patchwork)
+
+# Example: Clean top plot (remove x-axis)
+p_main_clean <- gg_p +
+  theme(
+    axis.title.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank()
+  )
+
+# Example: Clean heatmap (remove y axis, optional)
+p_heatmap_clean <- p_total_reads_heatmap +
+  theme(
+    axis.title.y = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank()
+  )
+
+# Combine with patchwork, sharing the x-axis
+combined_plot <- p_main_clean / p_heatmap_clean +
+  plot_layout(heights = c(4, 1))  # Control how much space each plot gets
+
+combined_plot
+
+library(cowplot)
+
+aligned_plots <- align_plots(p_main_clean, p_heatmap_clean, align = 'v', axis = 'lr')
+
+combined_plot <- plot_grid(
+  aligned_plots[[1]],
+  aligned_plots[[2]],
+  ncol = 1,
+  rel_heights = c(4, 1)
+)
+
+combined_plot
+
+```
